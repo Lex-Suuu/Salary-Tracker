@@ -3,8 +3,6 @@ import {
   Wallet,
   TrendingDown,
   Trash2,
-  Download,
-  Upload,
   Plus,
   CheckCircle2,
   AlertCircle,
@@ -15,7 +13,11 @@ import {
   X,
   PieChart as PieChartIcon,
   Printer,
-  Settings
+  Download,
+  Settings,
+  Eye,
+  EyeOff,
+  Building2
 } from 'lucide-react';
 
 const INITIAL_EXPENSE_CATEGORIES = [
@@ -65,12 +67,26 @@ export default function App() {
     }
   });
 
-  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
-  const fileInputRef = useRef(null);
-  const settingsMenuRef = useRef(null);
+  // Individual card eye hide/show state
+  const [hiddenAccounts, setHiddenAccounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salary_tracker_hidden_accounts');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
-  // Settings dropdown state
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const settingsMenuRef = useRef(null);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+
+  // Add Bank Modal State
+  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [newBankName, setNewBankName] = useState('');
+  const [newBankTag, setNewBankTag] = useState('');
+  const [newBankBadge, setNewBankBadge] = useState('');
+  const [newBankColor, setNewBankColor] = useState('blue');
 
   // Ledger Filter & Report Modal State
   const [ledgerView, setLedgerView] = useState('ALL'); // 'ALL' | 'EXPENSE' | 'TRANSFER' | 'SAVINGS'
@@ -83,26 +99,23 @@ export default function App() {
     acc2: 'transfer',
     acc3: 'transfer'
   });
-  const [cardAmounts, setCardAmounts] = useState({
-    acc1: '',
-    acc2: '',
-    acc3: ''
-  });
+  const [cardAmounts, setCardAmounts] = useState({});
 
   // Expense form state
   const [desc, setDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [category, setCategory] = useState(INITIAL_EXPENSE_CATEGORIES[0]);
   const [customCategory, setCustomCategory] = useState('');
-  const [expenseAccountId, setExpenseAccountId] = useState('acc2');
+  const [expenseAccountId, setExpenseAccountId] = useState(() => accounts[1]?.id || accounts[0]?.id || 'acc1');
 
   // Persistence
   useEffect(() => {
     localStorage.setItem('salary_tracker_ledger', JSON.stringify(transactions));
     localStorage.setItem('salary_tracker_accounts', JSON.stringify(accounts));
-  }, [transactions, accounts]);
+    localStorage.setItem('salary_tracker_hidden_accounts', JSON.stringify(hiddenAccounts));
+  }, [transactions, accounts, hiddenAccounts]);
 
-  // Click outside listener for Settings Menu
+  // Click outside to close settings menu
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
@@ -118,6 +131,13 @@ export default function App() {
     setTimeout(() => {
       setNotification({ show: false, message: '', type: 'success' });
     }, 3500);
+  };
+
+  const toggleAccountVisibility = (accId) => {
+    setHiddenAccounts((prev) => ({
+      ...prev,
+      [accId]: !prev[accId]
+    }));
   };
 
   // Live Balances
@@ -138,6 +158,10 @@ export default function App() {
     }
   });
 
+  // Calculate Total Net Worth across all accounts
+  const totalBalance = Object.values(balances).reduce((sum, val) => sum + val, 0);
+  const anyAccountHidden = accounts.some((acc) => !!hiddenAccounts[acc.id]);
+
   const handleStartEdit = (acc) => {
     setEditingAccountId(acc.id);
     setEditNameInput(acc.name);
@@ -153,6 +177,29 @@ export default function App() {
     showToast('Account name updated');
   };
 
+  const handleAddBankSubmit = (e) => {
+    e.preventDefault();
+    if (!newBankName.trim()) {
+      showToast('Bank name is required', 'error');
+      return;
+    }
+    const newAcc = {
+      id: 'acc_' + Date.now().toString(),
+      name: newBankName.trim(),
+      tag: newBankTag.trim() || 'General',
+      badge: newBankBadge.trim() || 'Bank',
+      color: newBankColor
+    };
+
+    setAccounts([...accounts, newAcc]);
+    setCardModes((prev) => ({ ...prev, [newAcc.id]: 'transfer' }));
+    setNewBankName('');
+    setNewBankTag('');
+    setNewBankBadge('');
+    setShowAddBankModal(false);
+    showToast(`Added ${newAcc.name} to your accounts`);
+  };
+
   const handleCardSubmit = (e, accId) => {
     e.preventDefault();
     const amt = parseFloat(cardAmounts[accId]);
@@ -164,9 +211,9 @@ export default function App() {
       return;
     }
 
-    const mode = cardModes[accId];
+    const mode = cardModes[accId] || (accId === accounts[0]?.id ? 'deposit' : 'transfer');
 
-    if (mode === 'deposit' || accId === accounts[0].id) {
+    if (mode === 'deposit' || accId === accounts[0]?.id) {
       const newTx = {
         id: Date.now().toString(),
         date: new Date().toISOString(),
@@ -179,18 +226,18 @@ export default function App() {
       setTransactions([newTx, ...transactions]);
       showToast(`Deposited ₱${amt.toLocaleString()} to ${targetAccount?.name}`);
     } else {
-      if (amt > (balances[mainAccount.id] || 0)) {
-        showToast(`Insufficient funds in ${mainAccount.name}`, 'error');
+      if (amt > (balances[mainAccount?.id] || 0)) {
+        showToast(`Insufficient funds in ${mainAccount?.name || 'Main Account'}`, 'error');
         return;
       }
       const newTx = {
         id: Date.now().toString(),
         date: new Date().toISOString(),
         type: 'TRANSFER',
-        description: `Transfer: ${mainAccount.name} to ${targetAccount?.name}`,
+        description: `Transfer: ${mainAccount?.name} to ${targetAccount?.name}`,
         amount: amt,
-        fromId: mainAccount.id,
-        fromName: mainAccount.name,
+        fromId: mainAccount?.id,
+        fromName: mainAccount?.name,
         toId: targetAccount?.id || accId,
         toName: targetAccount?.name || 'Account'
       };
@@ -255,42 +302,7 @@ export default function App() {
     }
   };
 
-  const handleExportData = () => {
-    setShowSettingsMenu(false);
-    const backup = { accounts, transactions };
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backup, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `salary_tracker_${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    showToast('Ledger backup exported');
-  };
-
-  const handleImportData = (e) => {
-    setShowSettingsMenu(false);
-    const fileReader = new FileReader();
-    if (e.target.files && e.target.files[0]) {
-      fileReader.readAsText(e.target.files[0], 'UTF-8');
-      fileReader.onload = (event) => {
-        try {
-          const parsed = JSON.parse(event.target.result);
-          if (Array.isArray(parsed)) {
-            setTransactions(parsed);
-          } else if (parsed?.transactions) {
-            setTransactions(parsed.transactions);
-            if (parsed.accounts) setAccounts(parsed.accounts);
-          }
-          showToast('Ledger data successfully restored');
-        } catch {
-          showToast('Could not parse JSON file', 'error');
-        }
-      };
-    }
-  };
-
-  // Safe Calculations for Expense Distribution
+  // Calculations for Expense Distribution
   const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
   const totalExpenses = expenseTransactions.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
 
@@ -317,7 +329,7 @@ export default function App() {
     if (ledgerView === 'EXPENSE') return tx.type === 'EXPENSE';
     if (ledgerView === 'TRANSFER') return tx.type === 'TRANSFER';
     if (ledgerView === 'SAVINGS') {
-      const savingsAcc = accounts[2];
+      const savingsAcc = accounts.find((a) => (a.tag || '').toLowerCase().includes('saving') || (a.badge || '').toLowerCase().includes('saving')) || accounts[2];
       const descText = (tx.description || '').toLowerCase();
       const catText = (tx.category || '').toLowerCase();
       return (
@@ -366,7 +378,7 @@ export default function App() {
     .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
   const reportSavings = reportList
     .filter((tx) => {
-      const savingsAcc = accounts[2];
+      const savingsAcc = accounts.find((a) => (a.tag || '').toLowerCase().includes('saving') || (a.badge || '').toLowerCase().includes('saving')) || accounts[2];
       const descText = (tx?.description || '').toLowerCase();
       return (savingsAcc && tx?.toId === savingsAcc.id) || descText.includes('savings');
     })
@@ -393,7 +405,10 @@ export default function App() {
     link.remove();
   };
 
-  const formatCurrency = (val) => {
+  const formatCurrency = (val, isHidden = false) => {
+    if (isHidden) {
+      return '₱••••••';
+    }
     return '₱' + (parseFloat(val) || 0).toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -418,6 +433,24 @@ export default function App() {
       badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       btn: 'bg-emerald-600 hover:bg-emerald-700',
       ring: 'focus:ring-emerald-500'
+    },
+    purple: {
+      text: 'text-purple-600',
+      badge: 'bg-purple-50 text-purple-700 border-purple-200',
+      btn: 'bg-purple-600 hover:bg-purple-700',
+      ring: 'focus:ring-purple-500'
+    },
+    rose: {
+      text: 'text-rose-600',
+      badge: 'bg-rose-50 text-rose-700 border-rose-200',
+      btn: 'bg-rose-600 hover:bg-rose-700',
+      ring: 'focus:ring-rose-500'
+    },
+    cyan: {
+      text: 'text-cyan-600',
+      badge: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+      btn: 'bg-cyan-600 hover:bg-cyan-700',
+      ring: 'focus:ring-cyan-500'
     }
   };
 
@@ -448,8 +481,16 @@ export default function App() {
             </div>
           </div>
 
-          {/* Clean Top Action Bar with Settings Gear */}
-          <div className="flex items-center gap-2 relative">
+          {/* Action Bar: Total Balance Badge, Generate Report, and Settings Gear Icon */}
+          <div className="flex items-center gap-2.5 relative">
+            {/* Total Balance Pill */}
+            <div className="flex items-center gap-2 bg-slate-100/90 border border-slate-200/90 px-3 py-1.5 rounded-lg shadow-xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total:</span>
+              <span className="text-sm font-extrabold text-slate-800 tracking-tight">
+                {formatCurrency(totalBalance, anyAccountHidden)}
+              </span>
+            </div>
+
             <button
               onClick={() => setShowReportModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded-lg transition-colors border border-blue-200 shadow-sm"
@@ -466,33 +507,27 @@ export default function App() {
                     ? 'bg-slate-200 border-slate-300 text-slate-900'
                     : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700 shadow-sm'
                 }`}
-                title="Data & Storage Settings"
+                title="Settings"
               >
                 <Settings size={18} />
               </button>
 
-              {/* Dropdown Menu */}
+              {/* Settings Dropdown Menu */}
               {showSettingsMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-1.5 border-b border-slate-100 mb-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Data Options</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Account & Storage</span>
                   </div>
 
-                  <button
-                    onClick={handleExportData}
-                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
-                  >
-                    <Download size={14} className="text-slate-500" /> Export JSON Backup
-                  </button>
-
+                  {/* Add New Bank Button */}
                   <button
                     onClick={() => {
                       setShowSettingsMenu(false);
-                      fileInputRef.current?.click();
+                      setShowAddBankModal(true);
                     }}
                     className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                   >
-                    <Upload size={14} className="text-slate-500" /> Import JSON Backup
+                    <Building2 size={15} className="text-blue-600" /> + Add New Bank
                   </button>
 
                   <div className="border-t border-slate-100 my-1"></div>
@@ -506,26 +541,19 @@ export default function App() {
                 </div>
               )}
             </div>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImportData}
-              accept=".json"
-              className="hidden"
-            />
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 mt-8 space-y-8">
-        {/* Account Cards */}
+        {/* Account Cards with Individual Eye Toggles */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {accounts.map((acc, index) => {
             const styles = colorStyles[acc.color] || colorStyles.blue;
             const isEditing = editingAccountId === acc.id;
             const isMainAccount = index === 0;
-            const currentMode = isMainAccount ? 'deposit' : (cardModes[acc.id] || 'transfer');
+            const currentMode = cardModes[acc.id] || (isMainAccount ? 'deposit' : 'transfer');
+            const isCardHidden = !!hiddenAccounts[acc.id];
 
             return (
               <div key={acc.id} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
@@ -562,13 +590,29 @@ export default function App() {
                       </div>
                     )}
 
-                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${styles.badge}`}>
-                      {acc.badge}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {/* Individual Eye Toggle Button */}
+                      <button
+                        onClick={() => toggleAccountVisibility(acc.id)}
+                        className={`p-1 rounded-md transition-colors ${
+                          isCardHidden
+                            ? 'bg-slate-200 text-slate-800'
+                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                        }`}
+                        title={isCardHidden ? `Show ${acc.name} balance` : `Hide ${acc.name} balance`}
+                      >
+                        {isCardHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+
+                      <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${styles.badge}`}>
+                        {acc.badge}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className={`text-3xl font-extrabold ${styles.text} mb-4`}>
-                    {formatCurrency(balances[acc.id] || 0)}
+                  {/* Individual Account Balance with Eye Mask */}
+                  <div className={`text-3xl font-extrabold ${styles.text} mb-4 tracking-tight`}>
+                    {formatCurrency(balances[acc.id] || 0, isCardHidden)}
                   </div>
                 </div>
 
@@ -584,7 +628,7 @@ export default function App() {
                           currentMode === 'transfer' ? 'text-slate-900 underline font-bold' : 'text-slate-400 hover:text-slate-600'
                         }`}
                       >
-                        Transfer from {accounts[0].name}
+                        Transfer from {accounts[0]?.name || 'Main'}
                       </button>
                       <span className="text-slate-300">|</span>
                       <button
@@ -688,7 +732,7 @@ export default function App() {
                 >
                   {accounts.map((acc) => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.name} ({formatCurrency(balances[acc.id] || 0)})
+                      {acc.name} ({formatCurrency(balances[acc.id] || 0, !!hiddenAccounts[acc.id])})
                     </option>
                   ))}
                 </select>
@@ -719,7 +763,7 @@ export default function App() {
 
                 <div className="text-right">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">Total Expenses</span>
-                  <span className="text-xl font-extrabold text-red-600">{formatCurrency(totalExpenses)}</span>
+                  <span className="text-xl font-extrabold text-red-600">{formatCurrency(totalExpenses, false)}</span>
                 </div>
               </div>
 
@@ -758,7 +802,7 @@ export default function App() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-800">{formatCurrency(cat.amount)}</span>
+                        <span className="text-xs font-bold text-slate-800">{formatCurrency(cat.amount, false)}</span>
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-white text-slate-600 border border-slate-200 min-w-[45px] text-center">
                           {cat.percentage.toFixed(1)}%
                         </span>
@@ -831,6 +875,8 @@ export default function App() {
                   {filteredTransactions.map((tx) => {
                     const isExpense = tx.type === 'EXPENSE';
                     const isIncome = tx.type === 'INCOME';
+                    const isTxHidden = (tx.fromId && hiddenAccounts[tx.fromId]) || (tx.toId && hiddenAccounts[tx.toId]);
+
                     return (
                       <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3.5 px-4 text-slate-500 text-xs">
@@ -863,11 +909,11 @@ export default function App() {
                           )}
                         </td>
                         <td
-                          className={`py-3.5 px-4 text-right font-bold ${
+                          className={`py-3.5 px-4 text-right font-bold tracking-tight ${
                             isIncome ? 'text-emerald-600' : isExpense ? 'text-red-600' : 'text-slate-700'
                           }`}
                         >
-                          {isExpense ? '-' : isIncome ? '+' : ''}{formatCurrency(tx.amount)}
+                          {isExpense ? '-' : isIncome ? '+' : ''}{formatCurrency(tx.amount, isTxHidden)}
                         </td>
                         <td className="py-3.5 px-4 text-center">
                           <button
@@ -887,6 +933,99 @@ export default function App() {
           )}
         </section>
       </main>
+
+      {/* Add New Bank Modal */}
+      {showAddBankModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Add New Bank / Wallet</h3>
+                  <p className="text-xs text-slate-500">Create a new account card for tracking</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddBankModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddBankSubmit} className="space-y-4 my-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Bank Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. BDO, Maya, GCash"
+                  value={newBankName}
+                  onChange={(e) => setNewBankName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Purpose / Tag</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Bills, Emergency, Side Income"
+                  value={newBankTag}
+                  onChange={(e) => setNewBankTag(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Badge Label</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Daily, Savings, Reserve"
+                  value={newBankBadge}
+                  onChange={(e) => setNewBankBadge(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Color Theme</label>
+                <select
+                  value={newBankColor}
+                  onChange={(e) => setNewBankColor(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="blue">Blue</option>
+                  <option value="amber">Amber / Gold</option>
+                  <option value="emerald">Emerald / Green</option>
+                  <option value="purple">Purple</option>
+                  <option value="rose">Rose / Pink</option>
+                  <option value="cyan">Cyan</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddBankModal(false)}
+                  className="w-1/2 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+                >
+                  Create Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Financial Report Modal */}
       {showReportModal && (
@@ -938,19 +1077,19 @@ export default function App() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
                 <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">Total Inflow</span>
-                  <span className="text-base font-extrabold text-emerald-800">{formatCurrency(reportInflow)}</span>
+                  <span className="text-base font-extrabold text-emerald-800">{formatCurrency(reportInflow, false)}</span>
                 </div>
                 <div className="p-3 bg-red-50 rounded-xl border border-red-100">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 block">Total Outflow</span>
-                  <span className="text-base font-extrabold text-red-800">{formatCurrency(reportOutflow)}</span>
+                  <span className="text-base font-extrabold text-red-800">{formatCurrency(reportOutflow, false)}</span>
                 </div>
                 <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">Net Flow</span>
-                  <span className="text-base font-extrabold text-blue-800">{formatCurrency(reportInflow - reportOutflow)}</span>
+                  <span className="text-base font-extrabold text-blue-800">{formatCurrency(reportInflow - reportOutflow, false)}</span>
                 </div>
                 <div className="p-3 bg-teal-50 rounded-xl border border-teal-100">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 block">To Savings</span>
-                  <span className="text-base font-extrabold text-teal-800">{formatCurrency(reportSavings)}</span>
+                  <span className="text-base font-extrabold text-teal-800">{formatCurrency(reportSavings, false)}</span>
                 </div>
               </div>
 
