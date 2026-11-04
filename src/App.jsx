@@ -70,7 +70,7 @@ export default function App() {
   // Ledger Filter & Report Modal State
   const [ledgerView, setLedgerView] = useState('ALL'); // 'ALL' | 'EXPENSE' | 'TRANSFER' | 'SAVINGS'
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportRange, setReportRange] = useState('ALL'); // 'ALL' | 'MONTH' | '30DAYS'
+  const [reportRange, setReportRange] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'TODAY'
 
   // Per-card action states
   const [cardModes, setCardModes] = useState({
@@ -104,7 +104,7 @@ export default function App() {
     }, 3500);
   };
 
-  // Balances calculation
+  // Live Balances
   const balances = (accounts || []).reduce((acc, curr) => {
     acc[curr.id] = 0;
     return acc;
@@ -230,12 +230,11 @@ export default function App() {
     showToast('Transaction removed');
   };
 
-  // Paste it here:
-  const handleResetTransfers = () => {
-    if (window.confirm('Are you sure you want to delete all transfer transactions?')) {
-      const updated = transactions.filter((tx) => tx.type !== 'TRANSFER');
-      setTransactions(updated);
-      showToast('All transfers have been reset');
+  const handleClearAll = () => {
+    if (window.confirm('Are you sure you want to completely clear all transactions and reset balances?')) {
+      setTransactions([]);
+      localStorage.removeItem('salary_tracker_ledger');
+      showToast('All transaction records cleared');
     }
   };
 
@@ -272,7 +271,7 @@ export default function App() {
     }
   };
 
-  // Safe calculations for Expense Distribution
+  // Safe Calculations for Expense Distribution
   const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
   const totalExpenses = expenseTransactions.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
 
@@ -293,7 +292,7 @@ export default function App() {
     };
   });
 
-  // Safe filter for ledger view
+  // Filter for Ledger View
   const filteredTransactions = (transactions || []).filter((tx) => {
     if (!tx) return false;
     if (ledgerView === 'EXPENSE') return tx.type === 'EXPENSE';
@@ -311,20 +310,31 @@ export default function App() {
     return true; // 'ALL'
   });
 
-  // Safe Report Filter calculation
+  // Report Date Filter (Today, This Week, This Month, All Time)
   const getReportTransactions = () => {
     const now = new Date();
     return (transactions || []).filter((tx) => {
       if (!tx?.date) return false;
       const txDate = new Date(tx.date);
-      if (reportRange === 'MONTH') {
-        return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+
+      if (reportRange === 'TODAY') {
+        return (
+          txDate.getDate() === now.getDate() &&
+          txDate.getMonth() === now.getMonth() &&
+          txDate.getFullYear() === now.getFullYear()
+        );
       }
-      if (reportRange === '30DAYS') {
+      if (reportRange === 'WEEK') {
         const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
-        return diffDays <= 30;
+        return diffDays >= 0 && diffDays <= 7;
       }
-      return true;
+      if (reportRange === 'MONTH') {
+        return (
+          txDate.getMonth() === now.getMonth() &&
+          txDate.getFullYear() === now.getFullYear()
+        );
+      }
+      return true; // 'ALL'
     });
   };
 
@@ -394,7 +404,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16 font-sans">
-      {/* Toast */}
+      {/* Toast Alert */}
       {notification.show && (
         <div
           className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all duration-300 ${
@@ -406,7 +416,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Header Toolbar */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -419,13 +429,30 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleClearAll}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium rounded-lg transition-colors border border-red-200 shadow-sm"
+              title="Clear all transactions and reset balances"
+            >
+              <Trash2 size={16} /> Clear All
+            </button>
+
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded-lg transition-colors border border-blue-200 shadow-sm"
+            >
+              <FileText size={16} /> Generate Report
+            </button>
+
             <button
               onClick={handleExportData}
               className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-300 shadow-sm"
             >
               <Download size={16} /> Export
             </button>
+
             <button
               onClick={() => fileInputRef.current.click()}
               className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-300 shadow-sm"
@@ -471,22 +498,6 @@ export default function App() {
                         <button onClick={() => setEditingAccountId(null)} className="text-slate-400 hover:text-slate-600 p-0.5">
                           <X size={14} />
                         </button>
-
-                        {/* Reset Transfers Button */}
-              <button
-                onClick={handleResetTransfers}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold rounded-lg transition-colors border border-amber-200"
-              >
-                <Trash2 size={14} /> Reset Transfers
-              </button>
-
-              {/* Generate Report Button */}
-              <button
-                onClick={() => setShowReportModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
-              >
-                <FileText size={14} /> Generate Report
-              </button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
@@ -522,7 +533,7 @@ export default function App() {
                         type="button"
                         onClick={() => setCardModes({ ...cardModes, [acc.id]: 'transfer' })}
                         className={`transition-colors ${
-                          currentMode === 'transfer' ? 'text-slate-900 underline' : 'text-slate-400 hover:text-slate-600'
+                          currentMode === 'transfer' ? 'text-slate-900 underline font-bold' : 'text-slate-400 hover:text-slate-600'
                         }`}
                       >
                         Transfer from {accounts[0].name}
@@ -532,7 +543,7 @@ export default function App() {
                         type="button"
                         onClick={() => setCardModes({ ...cardModes, [acc.id]: 'deposit' })}
                         className={`transition-colors ${
-                          currentMode === 'deposit' ? 'text-slate-900 underline' : 'text-slate-400 hover:text-slate-600'
+                          currentMode === 'deposit' ? 'text-slate-900 underline font-bold' : 'text-slate-400 hover:text-slate-600'
                         }`}
                       >
                         + Direct Income
@@ -562,7 +573,7 @@ export default function App() {
           })}
         </section>
 
-        {/* Expense Entry & Segmented Line Distribution */}
+        {/* Expense Entry & Segmented Progress Bar */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-fit">
             <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -644,7 +655,7 @@ export default function App() {
             </form>
           </div>
 
-          {/* Line Distribution Bar */}
+          {/* Line Distribution Breakdown */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -683,7 +694,7 @@ export default function App() {
                 )}
               </div>
 
-              {/* Category rows */}
+              {/* Category Rows with Badges */}
               <div className="space-y-2 mt-4 max-h-56 overflow-y-auto pr-1">
                 {categoryList.length === 0 ? (
                   <p className="text-xs text-slate-400 italic py-4 text-center">No expenses recorded yet.</p>
@@ -717,7 +728,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Ledger */}
+        {/* Transaction Ledger Table */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
@@ -728,34 +739,26 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-medium">
-                {[
-                  { label: 'All', value: 'ALL' },
-                  { label: 'Expenses', value: 'EXPENSE' },
-                  { label: 'Transfers', value: 'TRANSFER' },
-                  { label: 'Savings', value: 'SAVINGS' }
-                ].map((item) => (
-                  <button
-                    key={item.value}
-                    onClick={() => setLedgerView(item.value)}
-                    className={`px-3 py-1 rounded-md transition-colors ${
-                      ledgerView === item.value
-                        ? 'bg-white text-blue-600 font-bold shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setShowReportModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
-              >
-                <FileText size={14} /> Generate Report
-              </button>
+            {/* View Switcher Pills */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-medium">
+              {[
+                { label: 'All', value: 'ALL' },
+                { label: 'Expenses', value: 'EXPENSE' },
+                { label: 'Transfers', value: 'TRANSFER' },
+                { label: 'Savings', value: 'SAVINGS' }
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  onClick={() => setLedgerView(item.value)}
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    ledgerView === item.value
+                      ? 'bg-white text-blue-600 font-bold shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -860,13 +863,14 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Range Filters */}
+              {/* Range Filters: Today, This Week, This Month, All Time */}
               <div className="flex items-center gap-2 my-4">
                 <span className="text-xs font-semibold text-slate-500">Period:</span>
                 {[
-                  { label: 'All Time', value: 'ALL' },
+                  { label: 'Today', value: 'TODAY' },
+                  { label: 'This Week', value: 'WEEK' },
                   { label: 'This Month', value: 'MONTH' },
-                  { label: 'Last 30 Days', value: '30DAYS' }
+                  { label: 'All Time', value: 'ALL' }
                 ].map((period) => (
                   <button
                     key={period.value}
