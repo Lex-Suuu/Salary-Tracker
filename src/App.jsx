@@ -1,681 +1,953 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  DollarSign, 
-  Wallet, 
-  TrendingDown, 
-  Trash2, 
-  Download, 
-  Upload, 
+import {
+  Wallet,
+  TrendingDown,
+  Trash2,
+  Download,
+  Upload,
   Plus,
   CheckCircle2,
   AlertCircle,
-  PieChart as PieChartIcon,
   Calendar,
-  FileText
+  FileText,
+  Edit2,
+  Check,
+  X,
+  PieChart as PieChartIcon,
+  Printer
 } from 'lucide-react';
-import { 
-  PieChart, 
-  Pie, 
-  Legend, 
-  Tooltip as RechartsTooltip, 
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
+
+const INITIAL_EXPENSE_CATEGORIES = [
+  'Housing',
+  'Food & Groceries',
+  'Utilities',
+  'Transportation',
+  'Entertainment',
+  'Healthcare',
+  'Personal Care',
+  'Debt/Loans',
+  'Other'
+];
+
+const CATEGORY_COLORS = [
+  '#10B981', '#F59E0B', '#3B82F6', '#EC4899',
+  '#8B5CF6', '#06B6D4', '#F97316', '#6366F1', '#64748B'
+];
 
 export default function App() {
-  // State: Ledger System
-  const [transactions, setTransactions] = useState([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [accounts, setAccounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salary_tracker_accounts');
+      return saved ? JSON.parse(saved) : [
+        { id: 'acc1', name: 'RCBC', tag: 'Payroll', badge: 'Main', color: 'blue' },
+        { id: 'acc2', name: 'MariBank', tag: 'Expenses', badge: 'Daily', color: 'amber' },
+        { id: 'acc3', name: 'GoTyme', tag: 'Savings', badge: 'Savings', color: 'emerald' }
+      ];
+    } catch {
+      return [
+        { id: 'acc1', name: 'RCBC', tag: 'Payroll', badge: 'Main', color: 'blue' },
+        { id: 'acc2', name: 'MariBank', tag: 'Expenses', badge: 'Daily', color: 'amber' },
+        { id: 'acc3', name: 'GoTyme', tag: 'Savings', badge: 'Savings', color: 'emerald' }
+      ];
+    }
+  });
+
+  const [editingAccountId, setEditingAccountId] = useState(null);
+  const [editNameInput, setEditNameInput] = useState('');
+
+  const [transactions, setTransactions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salary_tracker_ledger');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const fileInputRef = useRef(null);
 
-  // Form States
-  const [incomeAmount, setIncomeAmount] = useState('');
-  const [transferMariBankAmount, setTransferMariBankAmount] = useState('');
-  const [transferGoTymeAmount, setTransferGoTymeAmount] = useState('');
+  // Ledger Filter & Report Modal State
+  const [ledgerView, setLedgerView] = useState('ALL'); // 'ALL' | 'EXPENSE' | 'TRANSFER' | 'SAVINGS'
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportRange, setReportRange] = useState('ALL'); // 'ALL' | 'MONTH' | '30DAYS'
 
+  // Per-card action states
+  const [cardModes, setCardModes] = useState({
+    acc1: 'deposit',
+    acc2: 'transfer',
+    acc3: 'transfer'
+  });
+  const [cardAmounts, setCardAmounts] = useState({
+    acc1: '',
+    acc2: '',
+    acc3: ''
+  });
+
+  // Expense form state
   const [desc, setDesc] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('Housing');
-  const [source, setSource] = useState('MariBank');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [category, setCategory] = useState(INITIAL_EXPENSE_CATEGORIES[0]);
+  const [customCategory, setCustomCategory] = useState('');
+  const [expenseAccountId, setExpenseAccountId] = useState('acc2');
 
-  const [reportStartDate, setReportStartDate] = useState('');
-  const [reportEndDate, setReportEndDate] = useState('');
-
-  // Helper to get current Philippine Time
-  const getPHTTimestamp = () => {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Manila',
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(new Date());
-  };
-
-  // Updated Categories
-  const categories = [
-    'Housing', 
-    'Food', 
-    'Transportation', 
-    'Transportation Maintenance', 
-    'Utilities', 
-    'Entertainment', 
-    'Healthcare', 
-    'Savings', 
-    'Other'
-  ];
-
-  // Load from LocalStorage and Handle Migration from V1
+  // Persistence
   useEffect(() => {
-    const savedTransactions = localStorage.getItem('tracker_transactions');
-    
-    // Legacy state keys for migration
-    const savedSalary = localStorage.getItem('tracker_salary');
-    const savedTransfer = localStorage.getItem('tracker_transfer');
-    const savedExpenses = localStorage.getItem('tracker_expenses');
+    localStorage.setItem('salary_tracker_ledger', JSON.stringify(transactions));
+    localStorage.setItem('salary_tracker_accounts', JSON.stringify(accounts));
+  }, [transactions, accounts]);
 
-    let initialTransactions = [];
-
-    if (savedTransactions) {
-      try {
-        initialTransactions = JSON.parse(savedTransactions);
-      } catch (e) {
-        console.error("Could not parse saved transactions");
-      }
-    } else if (savedSalary || savedExpenses) {
-      // Migrate old version data to the new ledger system automatically
-      if (savedSalary) {
-        const sal = parseFloat(savedSalary) || 0;
-        if (sal > 0) {
-          initialTransactions.push({ id: 'mig-inc', timestamp: Date.now(), date: getPHTTimestamp(), type: 'INCOME', amount: sal, description: 'Initial Salary Migration' });
-          
-          const trans = parseFloat(savedTransfer) || 0;
-          if (trans > 0) {
-            initialTransactions.push({ id: 'mig-tr-go', timestamp: Date.now(), date: getPHTTimestamp(), type: 'TRANSFER', dest: 'GoTyme', amount: trans, description: 'Initial GoTyme Setup' });
-          }
-          
-          const mariTrans = sal - trans;
-          if (mariTrans > 0) {
-             initialTransactions.push({ id: 'mig-tr-ma', timestamp: Date.now(), date: getPHTTimestamp(), type: 'TRANSFER', dest: 'MariBank', amount: mariTrans, description: 'Initial MariBank Setup' });
-          }
-        }
-      }
-      if (savedExpenses) {
-        try {
-          const exps = JSON.parse(savedExpenses);
-          exps.forEach(e => {
-            initialTransactions.push({
-              id: e.id, timestamp: Date.now(), date: e.date, type: 'EXPENSE', source: e.source, category: e.category, amount: e.amount, description: e.description
-            });
-          });
-        } catch(e) {}
-      }
-    }
-    
-    setTransactions(initialTransactions);
-    setIsLoaded(true);
-  }, []);
-
-  // Save to LocalStorage
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('tracker_transactions', JSON.stringify(transactions));
-    }
-  }, [transactions, isLoaded]);
-
-  // Actions
-  const showNotification = (message, type = 'success') => {
+  const showToast = (message, type = 'success') => {
     setNotification({ show: true, message, type });
-    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+    setTimeout(() => {
+      setNotification({ show: false, message: '', type: 'success' });
+    }, 3500);
   };
 
-  // Calculations
-  const rcbcIncome = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0);
-  const rcbcTransfers = transactions.filter(t => t.type === 'TRANSFER').reduce((sum, t) => sum + t.amount, 0);
-  const rcbcBalance = rcbcIncome - rcbcTransfers;
+  // Balances calculation
+  const balances = (accounts || []).reduce((acc, curr) => {
+    acc[curr.id] = 0;
+    return acc;
+  }, {});
 
-  const mariBankTransfers = transactions.filter(t => t.type === 'TRANSFER' && t.dest === 'MariBank').reduce((sum, t) => sum + t.amount, 0);
-  const mariBankExpenses = transactions.filter(t => t.type === 'EXPENSE' && t.source === 'MariBank').reduce((sum, t) => sum + t.amount, 0);
-  const maribankBalance = mariBankTransfers - mariBankExpenses;
+  (transactions || []).forEach((tx) => {
+    const amt = parseFloat(tx.amount) || 0;
+    if (tx.type === 'INCOME') {
+      if (balances[tx.toId] !== undefined) balances[tx.toId] += amt;
+    } else if (tx.type === 'TRANSFER') {
+      if (balances[tx.fromId] !== undefined) balances[tx.fromId] -= amt;
+      if (balances[tx.toId] !== undefined) balances[tx.toId] += amt;
+    } else if (tx.type === 'EXPENSE') {
+      if (balances[tx.fromId] !== undefined) balances[tx.fromId] -= amt;
+    }
+  });
 
-  const goTymeTransfers = transactions.filter(t => t.type === 'TRANSFER' && t.dest === 'GoTyme').reduce((sum, t) => sum + t.amount, 0);
-  const gotymeExpenses = transactions.filter(t => t.type === 'EXPENSE' && t.source === 'GoTyme').reduce((sum, t) => sum + t.amount, 0);
-  const gotymeBalance = goTymeTransfers - gotymeExpenses;
-
-  // Handlers
-  const handleAddIncome = () => {
-    const num = parseFloat(incomeAmount);
-    if (!num || num <= 0) return;
-    
-    const newTx = {
-      id: Date.now().toString(),
-      timestamp: Date.now(),
-      date: getPHTTimestamp(),
-      type: 'INCOME',
-      amount: num,
-      description: 'Income Deposit'
-    };
-    setTransactions([newTx, ...transactions]);
-    setIncomeAmount('');
-    showNotification('Income added successfully');
+  const handleStartEdit = (acc) => {
+    setEditingAccountId(acc.id);
+    setEditNameInput(acc.name);
   };
 
-  const handleTransfer = (dest, amountStr, setAmountFunc) => {
-    const num = parseFloat(amountStr);
-    if (!num || num <= 0) return;
-    if (num > rcbcBalance) {
-      showNotification(`Insufficient funds in RCBC for this transfer`, 'error');
+  const handleSaveEdit = (accId) => {
+    if (!editNameInput.trim()) {
+      showToast('Account name cannot be empty', 'error');
+      return;
+    }
+    setAccounts(accounts.map((a) => (a.id === accId ? { ...a, name: editNameInput.trim() } : a)));
+    setEditingAccountId(null);
+    showToast('Account name updated');
+  };
+
+  const handleCardSubmit = (e, accId) => {
+    e.preventDefault();
+    const amt = parseFloat(cardAmounts[accId]);
+    const targetAccount = accounts.find((a) => a.id === accId);
+    const mainAccount = accounts[0];
+
+    if (isNaN(amt) || amt <= 0) {
+      showToast('Please enter a valid amount', 'error');
       return;
     }
 
-    const newTx = {
-      id: Date.now().toString(),
-      timestamp: Date.now(),
-      date: getPHTTimestamp(),
-      type: 'TRANSFER',
-      dest,
-      amount: num,
-      description: `Fund Transfer`
-    };
-    setTransactions([newTx, ...transactions]);
-    setAmountFunc('');
-    showNotification(`Successfully transferred to ${dest}`);
+    const mode = cardModes[accId];
+
+    if (mode === 'deposit' || accId === accounts[0].id) {
+      const newTx = {
+        id: Date.now().toString(),
+        date: new Date().toISOString(),
+        type: 'INCOME',
+        description: `Deposit (${targetAccount?.name || 'Account'})`,
+        amount: amt,
+        toId: targetAccount?.id || accId,
+        toName: targetAccount?.name || 'Account'
+      };
+      setTransactions([newTx, ...transactions]);
+      showToast(`Deposited ₱${amt.toLocaleString()} to ${targetAccount?.name}`);
+    } else {
+      if (amt > (balances[mainAccount.id] || 0)) {
+        showToast(`Insufficient funds in ${mainAccount.name}`, 'error');
+        return;
+      }
+      const newTx = {
+        id: Date.now().toString(),
+        date: new Date().toISOString(),
+        type: 'TRANSFER',
+        description: `Transfer: ${mainAccount.name} to ${targetAccount?.name}`,
+        amount: amt,
+        fromId: mainAccount.id,
+        fromName: mainAccount.name,
+        toId: targetAccount?.id || accId,
+        toName: targetAccount?.name || 'Account'
+      };
+      setTransactions([newTx, ...transactions]);
+      showToast(`Transferred ₱${amt.toLocaleString()} to ${targetAccount?.name}`);
+    }
+
+    setCardAmounts({ ...cardAmounts, [accId]: '' });
   };
 
   const handleAddExpense = (e) => {
     e.preventDefault();
-    const num = parseFloat(amount);
-    if (!desc || !num || num <= 0) return;
+    const amt = parseFloat(expenseAmount);
+    const sourceAccount = accounts.find((a) => a.id === expenseAccountId);
+
+    if (!desc.trim()) {
+      showToast('Please enter an expense description', 'error');
+      return;
+    }
+    if (isNaN(amt) || amt <= 0) {
+      showToast('Please enter a valid expense amount', 'error');
+      return;
+    }
+
+    const available = balances[expenseAccountId] || 0;
+    if (amt > available) {
+      showToast(`Insufficient funds in ${sourceAccount?.name || 'account'}`, 'error');
+      return;
+    }
+
+    const finalCategory = category === 'Other' ? (customCategory.trim() || 'Other') : category;
 
     const newTx = {
       id: Date.now().toString(),
-      timestamp: Date.now(),
-      date: getPHTTimestamp(),
+      date: new Date().toISOString(),
       type: 'EXPENSE',
-      source,
-      category,
-      amount: num,
-      description: desc
+      description: desc.trim(),
+      amount: amt,
+      category: finalCategory,
+      fromId: expenseAccountId,
+      fromName: sourceAccount?.name || 'Unknown'
     };
 
     setTransactions([newTx, ...transactions]);
     setDesc('');
-    setAmount('');
-    showNotification('Expense recorded successfully');
+    setExpenseAmount('');
+    setCustomCategory('');
+    showToast(`Logged expense: ₱${amt.toLocaleString()} (${finalCategory})`);
   };
 
   const handleDeleteTx = (id) => {
-    setTransactions(transactions.filter(t => t.id !== id));
-    showNotification('Transaction deleted');
+    setTransactions(transactions.filter((tx) => tx.id !== id));
+    showToast('Transaction removed');
   };
 
-  // Import / Export
-  const handleExport = () => {
-    const data = { transactions };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `financial_ledger_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showNotification('Data exported successfully');
+  // Paste it here:
+  const handleResetTransfers = () => {
+    if (window.confirm('Are you sure you want to delete all transfer transactions?')) {
+      const updated = transactions.filter((tx) => tx.type !== 'TRANSFER');
+      setTransactions(updated);
+      showToast('All transfers have been reset');
+    }
   };
 
-  const handleImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleExportData = () => {
+    const backup = { accounts, transactions };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backup, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `salary_tracker_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    showToast('Ledger backup exported');
+  };
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target.result);
-        if (data.transactions && Array.isArray(data.transactions)) {
-          setTransactions(data.transactions);
-          showNotification('Ledger imported successfully');
-        } else {
-          showNotification('Invalid format. Missing transactions array.', 'error');
+  const handleImportData = (e) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], 'UTF-8');
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          if (Array.isArray(parsed)) {
+            setTransactions(parsed);
+          } else if (parsed?.transactions) {
+            setTransactions(parsed.transactions);
+            if (parsed.accounts) setAccounts(parsed.accounts);
+          }
+          showToast('Ledger data successfully restored');
+        } catch {
+          showToast('Could not parse JSON file', 'error');
         }
-      } catch (error) {
-        showNotification('Invalid JSON file', 'error');
-      }
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+      };
+    }
   };
+
+  // Safe calculations for Expense Distribution
+  const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
+  const totalExpenses = expenseTransactions.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
+
+  const categoryTotals = expenseTransactions.reduce((acc, tx) => {
+    const cat = tx?.category || 'Other';
+    acc[cat] = (acc[cat] || 0) + (parseFloat(tx.amount) || 0);
+    return acc;
+  }, {});
+
+  const categoryList = Object.keys(categoryTotals).map((name, index) => {
+    const amount = categoryTotals[name];
+    const percentage = totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0;
+    return {
+      name,
+      amount,
+      percentage,
+      color: CATEGORY_COLORS[index % CATEGORY_COLORS.length]
+    };
+  });
+
+  // Safe filter for ledger view
+  const filteredTransactions = (transactions || []).filter((tx) => {
+    if (!tx) return false;
+    if (ledgerView === 'EXPENSE') return tx.type === 'EXPENSE';
+    if (ledgerView === 'TRANSFER') return tx.type === 'TRANSFER';
+    if (ledgerView === 'SAVINGS') {
+      const savingsAcc = accounts[2];
+      const descText = (tx.description || '').toLowerCase();
+      const catText = (tx.category || '').toLowerCase();
+      return (
+        (savingsAcc && tx.toId === savingsAcc.id) ||
+        descText.includes('savings') ||
+        catText.includes('savings')
+      );
+    }
+    return true; // 'ALL'
+  });
+
+  // Safe Report Filter calculation
+  const getReportTransactions = () => {
+    const now = new Date();
+    return (transactions || []).filter((tx) => {
+      if (!tx?.date) return false;
+      const txDate = new Date(tx.date);
+      if (reportRange === 'MONTH') {
+        return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+      }
+      if (reportRange === '30DAYS') {
+        const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
+        return diffDays <= 30;
+      }
+      return true;
+    });
+  };
+
+  const reportList = getReportTransactions();
+  const reportInflow = reportList
+    .filter((tx) => tx?.type === 'INCOME')
+    .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+  const reportOutflow = reportList
+    .filter((tx) => tx?.type === 'EXPENSE')
+    .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+  const reportSavings = reportList
+    .filter((tx) => {
+      const savingsAcc = accounts[2];
+      const descText = (tx?.description || '').toLowerCase();
+      return (savingsAcc && tx?.toId === savingsAcc.id) || descText.includes('savings');
+    })
+    .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
 
   const handleDownloadCSV = () => {
-    const filtered = transactions.filter(tx => {
-      const txTime = tx.timestamp || parseInt(tx.id);
-      if (isNaN(txTime)) return true;
-      
-      let match = true;
-      if (reportStartDate) {
-        const start = new Date(reportStartDate).setHours(0, 0, 0, 0);
-        if (txTime < start) match = false;
-      }
-      if (reportEndDate) {
-        const end = new Date(reportEndDate).setHours(23, 59, 59, 999);
-        if (txTime > end) match = false;
-      }
-      return match;
-    });
-
-    if (filtered.length === 0) {
-      showNotification('No transactions found in this date range.', 'error');
-      return;
-    }
-
-    const headers = ['Date', 'Type', 'Description', 'Category', 'Source/Dest', 'Amount'];
-    const rows = filtered.map(tx => [
-      `"${tx.date}"`,
-      tx.type,
-      `"${tx.description}"`,
-      tx.category || '-',
-      tx.type === 'INCOME' ? 'RCBC' : (tx.type === 'TRANSFER' ? tx.dest : tx.source),
-      tx.amount
+    const headers = ['Date', 'Type', 'Description', 'Category', 'From', 'To', 'Amount'];
+    const rows = reportList.map((tx) => [
+      new Date(tx.date).toLocaleDateString(),
+      tx.type || '',
+      `"${(tx.description || '').replace(/"/g, '""')}"`,
+      `"${tx.category || ''}"`,
+      `"${tx.fromName || ''}"`,
+      `"${tx.toName || ''}"`,
+      tx.amount || 0
     ]);
-
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
-    link.href = url;
-    link.download = `financial_report_${reportStartDate || 'start'}_to_${reportEndDate || 'end'}.csv`;
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `financial_report_${reportRange.toLowerCase()}.csv`);
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showNotification('CSV Report downloaded successfully');
+    link.remove();
   };
 
-  // Chart Data (Expenses Only)
-  const expensesOnly = transactions.filter(t => t.type === 'EXPENSE');
-  const categoryData = categories.map(cat => ({
-    name: cat,
-    value: expensesOnly.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0)
-  })).filter(cat => cat.value > 0).sort((a, b) => b.value - a.value);
+  const formatCurrency = (val) => {
+    return '₱' + (parseFloat(val) || 0).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
 
-  const COLORS = ['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a', '#172554'];
-
-  const formatMoney = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
+  const colorStyles = {
+    blue: {
+      text: 'text-blue-600',
+      badge: 'bg-blue-50 text-blue-700 border-blue-200',
+      btn: 'bg-blue-600 hover:bg-blue-700',
+      ring: 'focus:ring-blue-500'
+    },
+    amber: {
+      text: 'text-amber-600',
+      badge: 'bg-amber-50 text-amber-700 border-amber-200',
+      btn: 'bg-amber-600 hover:bg-amber-700',
+      ring: 'focus:ring-amber-500'
+    },
+    emerald: {
+      text: 'text-emerald-600',
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      btn: 'bg-emerald-600 hover:bg-emerald-700',
+      ring: 'focus:ring-emerald-500'
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* Header & Actions */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-              <Wallet className="w-8 h-8 text-blue-600" />
-              Salary Tracker
-            </h1>
-            <p className="text-slate-500 text-sm mt-1">Manage your income, transfers, and expenses</p>
-          </div>
-          
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16 font-sans">
+      {/* Toast */}
+      {notification.show && (
+        <div
+          className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all duration-300 ${
+            notification.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'
+          }`}
+        >
+          {notification.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+          <span>{notification.message}</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors font-medium text-sm">
-              <Download className="w-4 h-4" /> Export Ledger
+            <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-sm">
+              <Wallet size={24} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-800">Salary & Budget Tracker</h1>
+              <p className="text-xs text-slate-500">Track multi-account balances & breakdown</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportData}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-300 shadow-sm"
+            >
+              <Download size={16} /> Export
             </button>
-            <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImport} />
-            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors font-medium text-sm border border-blue-200">
-              <Upload className="w-4 h-4" /> Import Data
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-300 shadow-sm"
+            >
+              <Upload size={16} /> Import
             </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportData}
+              accept=".json"
+              className="hidden"
+            />
           </div>
         </div>
+      </header>
 
-        {/* Custom Notification Toast */}
-        {notification.show && (
-          <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300 animate-in fade-in slide-in-from-top-4 ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
-            {notification.type === 'error' ? <AlertCircle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
-            {notification.message}
-          </div>
-        )}
+      <main className="max-w-6xl mx-auto px-4 mt-8 space-y-8">
+        {/* Account Cards */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {accounts.map((acc, index) => {
+            const styles = colorStyles[acc.color] || colorStyles.blue;
+            const isEditing = editingAccountId === acc.id;
+            const isMainAccount = index === 0;
+            const currentMode = isMainAccount ? 'deposit' : (cardModes[acc.id] || 'transfer');
 
-        {/* Dashboard Balances Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
-          {/* RCBC Master Account */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
-                  RCBC Balance (Income)
-                  <img src="https://logo.clearbit.com/rcbc.com" alt="RCBC" className="h-4 rounded-sm bg-white" onError={(e) => e.target.style.display = 'none'} />
-                </p>
-                <h3 className="text-2xl font-bold text-slate-800 mt-1">{formatMoney(rcbcBalance)}</h3>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-xl">
-                <DollarSign className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-slate-100">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Deposit Income</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">₱</span>
-                  <input
-                    type="number"
-                    value={incomeAmount}
-                    onChange={(e) => setIncomeAmount(e.target.value)}
-                    placeholder="Amount"
-                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
+            return (
+              <div key={acc.id} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    {isEditing ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={editNameInput}
+                          onChange={(e) => setEditNameInput(e.target.value)}
+                          className="text-xs font-semibold uppercase border border-slate-300 rounded px-1.5 py-0.5"
+                          placeholder="Bank name"
+                        />
+                        <button onClick={() => handleSaveEdit(acc.id)} className="text-emerald-600 hover:text-emerald-700 p-0.5">
+                          <Check size={14} />
+                        </button>
+                        <button onClick={() => setEditingAccountId(null)} className="text-slate-400 hover:text-slate-600 p-0.5">
+                          <X size={14} />
+                        </button>
+
+                        {/* Reset Transfers Button */}
+              <button
+                onClick={handleResetTransfers}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold rounded-lg transition-colors border border-amber-200"
+              >
+                <Trash2 size={14} /> Reset Transfers
+              </button>
+
+              {/* Generate Report Button */}
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+              >
+                <FileText size={14} /> Generate Report
+              </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                          {acc.name} ({acc.tag})
+                        </span>
+                        <button
+                          onClick={() => handleStartEdit(acc)}
+                          className="text-slate-400 hover:text-slate-600 p-0.5"
+                          title="Rename account"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                      </div>
+                    )}
+
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${styles.badge}`}>
+                      {acc.badge}
+                    </span>
+                  </div>
+
+                  <div className={`text-3xl font-extrabold ${styles.text} mb-4`}>
+                    {formatCurrency(balances[acc.id] || 0)}
+                  </div>
                 </div>
-                <button onClick={handleAddIncome} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
 
-          {/* MariBank Account */}
-          <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between ${maribankBalance < 0 ? 'bg-rose-50 border-rose-100' : 'bg-white border-slate-100'}`}>
-            <div className="flex justify-between items-start">
-              <div>
-                <p className={`text-sm font-medium flex items-center gap-2 ${maribankBalance < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                  MariBank (Expenses)
-                  <img src="https://logo.clearbit.com/maribank.ph" alt="MariBank" className="h-4 rounded-sm bg-white" onError={(e) => e.target.style.display = 'none'} />
-                </p>
-                <h3 className={`text-2xl font-bold mt-1 ${maribankBalance < 0 ? 'text-rose-700' : 'text-slate-800'}`}>
-                  {formatMoney(maribankBalance)}
-                </h3>
-              </div>
-              <div className={`p-3 rounded-xl ${maribankBalance < 0 ? 'bg-rose-100' : 'bg-orange-50'}`}>
-                <TrendingDown className={`w-6 h-6 ${maribankBalance < 0 ? 'text-rose-600' : 'text-orange-500'}`} />
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-slate-100/50">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Transfer from RCBC</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">₱</span>
-                  <input
-                    type="number"
-                    value={transferMariBankAmount}
-                    onChange={(e) => setTransferMariBankAmount(e.target.value)}
-                    placeholder="Amount"
-                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                  />
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  {isMainAccount ? (
+                    <label className="text-xs font-semibold text-slate-600 block">Deposit Salary</label>
+                  ) : (
+                    <div className="flex items-center gap-3 text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setCardModes({ ...cardModes, [acc.id]: 'transfer' })}
+                        className={`transition-colors ${
+                          currentMode === 'transfer' ? 'text-slate-900 underline' : 'text-slate-400 hover:text-slate-600'
+                        }`}
+                      >
+                        Transfer from {accounts[0].name}
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setCardModes({ ...cardModes, [acc.id]: 'deposit' })}
+                        className={`transition-colors ${
+                          currentMode === 'deposit' ? 'text-slate-900 underline' : 'text-slate-400 hover:text-slate-600'
+                        }`}
+                      >
+                        + Direct Income
+                      </button>
+                    </div>
+                  )}
+
+                  <form onSubmit={(e) => handleCardSubmit(e, acc.id)} className="flex gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="₱ Amount"
+                      value={cardAmounts[acc.id] || ''}
+                      onChange={(e) => setCardAmounts({ ...cardAmounts, [acc.id]: e.target.value })}
+                      className={`w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 ${styles.ring}`}
+                    />
+                    <button
+                      type="submit"
+                      className={`px-4 py-2 ${styles.btn} text-white font-medium rounded-lg text-sm transition-colors flex items-center gap-1 whitespace-nowrap`}
+                    >
+                      {currentMode === 'deposit' ? <><Plus size={16} /> Deposit</> : 'Transfer'}
+                    </button>
+                  </form>
                 </div>
-                <button onClick={() => handleTransfer('MariBank', transferMariBankAmount, setTransferMariBankAmount)} className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors text-sm">
-                  Transfer
-                </button>
               </div>
-            </div>
-          </div>
+            );
+          })}
+        </section>
 
-          {/* GoTyme Account */}
-          <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between ${gotymeBalance < 0 ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'}`}>
-            <div className="flex justify-between items-start">
-              <div>
-                <p className={`text-sm font-medium flex items-center gap-2 ${gotymeBalance < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                  GoTyme (Savings)
-                  <img src="https://logo.clearbit.com/gotyme.com.ph" alt="GoTyme" className="h-4 rounded-sm bg-white" onError={(e) => e.target.style.display = 'none'} />
-                </p>
-                <h3 className={`text-2xl font-bold mt-1 ${gotymeBalance < 0 ? 'text-rose-700' : 'text-emerald-800'}`}>
-                  {formatMoney(gotymeBalance)}
-                </h3>
-              </div>
-              <div className={`p-3 rounded-xl ${gotymeBalance < 0 ? 'bg-rose-100' : 'bg-emerald-100'}`}>
-                <Wallet className={`w-6 h-6 ${gotymeBalance < 0 ? 'text-rose-600' : 'text-emerald-600'}`} />
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-black/5">
-              <label className={`text-xs font-semibold uppercase tracking-wider block mb-2 ${gotymeBalance < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                Transfer from RCBC
-              </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${gotymeBalance < 0 ? 'text-rose-400' : 'text-emerald-500'}`}>₱</span>
-                  <input
-                    type="number"
-                    value={transferGoTymeAmount}
-                    onChange={(e) => setTransferGoTymeAmount(e.target.value)}
-                    placeholder="Amount"
-                    className={`w-full pl-7 pr-3 py-2 bg-white/50 border rounded-lg focus:ring-2 outline-none transition-all ${
-                      gotymeBalance < 0 ? 'border-rose-200 focus:ring-rose-500' : 'border-emerald-200 focus:ring-emerald-500'
-                    }`}
-                  />
-                </div>
-                <button onClick={() => handleTransfer('GoTyme', transferGoTymeAmount, setTransferGoTymeAmount)} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors text-sm">
-                  Transfer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Transaction Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Add Expense Form */}
-          <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit">
+        {/* Expense Entry & Segmented Line Distribution */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-fit">
             <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-blue-500" /> Log an Expense
+              <TrendingDown className="text-red-500" size={20} />
+              Log Expense
             </h2>
+
             <form onSubmit={handleAddExpense} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Description</label>
                 <input
                   type="text"
-                  required
+                  placeholder="e.g. Weekly Groceries"
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
-                  placeholder="e.g. Groceries"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">₱</span>
-                  <input
-                    type="number"
-                    required
-                    min="0.01"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Amount (₱)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={expenseAmount}
+                  onChange={(e) => setExpenseAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Category</label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                  {categories.map(cat => (
+                  {INITIAL_EXPENSE_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
               </div>
 
+              {category === 'Other' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Specify Category Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Subscriptions, Pet Supplies"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-amber-300 bg-amber-50/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Deduct From</label>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Pay From</label>
                 <select
-                  value={source}
-                  onChange={(e) => setSource(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={expenseAccountId}
+                  onChange={(e) => setExpenseAccountId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                  <option value="MariBank">MariBank</option>
-                  <option value="GoTyme">GoTyme</option>
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} ({formatCurrency(balances[acc.id] || 0)})
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <button type="submit" className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg transition-colors mt-2">
-                Log Expense
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-sm transition-colors shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <Plus size={16} /> Add Expense
               </button>
             </form>
           </div>
 
-          {/* Transactions List */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-lg font-bold text-slate-800 mb-4">Ledger History</h2>
-            
-            {transactions.length === 0 ? (
-              <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                <Wallet className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">No transactions recorded yet.</p>
-                <p className="text-slate-400 text-sm mt-1">Add income to RCBC to get started.</p>
+          {/* Line Distribution Bar */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <PieChartIcon size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-800">Expense Distribution</h2>
+                    <p className="text-xs text-slate-500">Breakdown across all logged categories</p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">Total Expenses</span>
+                  <span className="text-xl font-extrabold text-red-600">{formatCurrency(totalExpenses)}</span>
+                </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                      <th className="py-3 px-4">Date & Time</th>
-                      <th className="py-3 px-4">Description</th>
-                      <th className="py-3 px-4">Type</th>
-                      <th className="py-3 px-4">Account/Category</th>
-                      <th className="py-3 px-4 text-right">Amount</th>
-                      <th className="py-3 px-4 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((tx) => (
-                      <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
-                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                          {tx.date}
+
+              {/* Progress Line */}
+              <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex my-4 border border-slate-200/60">
+                {totalExpenses === 0 ? (
+                  <div className="w-full h-full bg-slate-200" />
+                ) : (
+                  categoryList.map((cat, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        width: `${cat.percentage}%`,
+                        backgroundColor: cat.color
+                      }}
+                      className="h-full transition-all duration-300"
+                      title={`${cat.name}: ${cat.percentage.toFixed(1)}%`}
+                    />
+                  ))
+                )}
+              </div>
+
+              {/* Category rows */}
+              <div className="space-y-2 mt-4 max-h-56 overflow-y-auto pr-1">
+                {categoryList.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-4 text-center">No expenses recorded yet.</p>
+                ) : (
+                  categoryList.map((cat, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                        <span className="text-xs font-semibold text-slate-700">{cat.name}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-800">{formatCurrency(cat.amount)}</span>
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-white text-slate-600 border border-slate-200 min-w-[45px] text-center">
+                          {cat.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center text-xs text-slate-400 pt-3 border-t border-slate-100 mt-4">
+              <span>{accounts.length} linked accounts</span>
+              <span>{categoryList.length} active categories</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Ledger */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="text-slate-500" size={20} />
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Transaction Ledger</h2>
+                <p className="text-xs text-slate-500">Complete record of inflows, outflows, and transfers</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-medium">
+                {[
+                  { label: 'All', value: 'ALL' },
+                  { label: 'Expenses', value: 'EXPENSE' },
+                  { label: 'Transfers', value: 'TRANSFER' },
+                  { label: 'Savings', value: 'SAVINGS' }
+                ].map((item) => (
+                  <button
+                    key={item.value}
+                    onClick={() => setLedgerView(item.value)}
+                    className={`px-3 py-1 rounded-md transition-colors ${
+                      ledgerView === item.value
+                        ? 'bg-white text-blue-600 font-bold shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+              >
+                <FileText size={14} /> Generate Report
+              </button>
+            </div>
+          </div>
+
+          {filteredTransactions.length === 0 ? (
+            <div className="p-10 text-center text-slate-400">
+              <p className="text-sm">No transactions found for this view.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4 font-semibold">Date</th>
+                    <th className="py-3 px-4 font-semibold">Type</th>
+                    <th className="py-3 px-4 font-semibold">Description</th>
+                    <th className="py-3 px-4 font-semibold">Category / Route</th>
+                    <th className="py-3 px-4 font-semibold text-right">Amount</th>
+                    <th className="py-3 px-4 font-semibold text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTransactions.map((tx) => {
+                    const isExpense = tx.type === 'EXPENSE';
+                    const isIncome = tx.type === 'INCOME';
+                    return (
+                      <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3.5 px-4 text-slate-500 text-xs">
+                          {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-800">
-                          {tx.description}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            tx.type === 'INCOME' ? 'bg-blue-100 text-blue-700' :
-                            tx.type === 'TRANSFER' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                          }`}>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              isIncome
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : isExpense
+                                ? 'bg-red-50 text-red-700'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}
+                          >
                             {tx.type}
                           </span>
                         </td>
-                        <td className="py-3 px-4">
-                           <div className="flex flex-col">
-                             <span className="text-sm font-medium text-slate-700">
-                               {tx.type === 'INCOME' ? 'RCBC' : tx.type === 'TRANSFER' ? `RCBC ➔ ${tx.dest}` : tx.source}
-                             </span>
-                             {tx.type === 'EXPENSE' && tx.category && (
-                               <span className="text-xs text-slate-500">{tx.category}</span>
-                             )}
-                           </div>
+                        <td className="py-3.5 px-4 font-medium text-slate-800">{tx.description}</td>
+                        <td className="py-3.5 px-4 text-slate-600 text-xs">
+                          {isExpense ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="font-medium text-slate-700">{tx.category || 'Other'}</span>
+                              <span className="text-slate-400 font-normal">({tx.fromName})</span>
+                            </span>
+                          ) : tx.type === 'TRANSFER' ? (
+                            `${tx.fromName} ➔ ${tx.toName}`
+                          ) : (
+                            `Direct to ${tx.toName}`
+                          )}
                         </td>
-                        <td className={`py-3 px-4 text-right font-medium whitespace-nowrap ${
-                           tx.type === 'INCOME' ? 'text-blue-600' :
-                           tx.type === 'TRANSFER' ? 'text-emerald-600' : 'text-slate-800'
-                        }`}>
-                          {tx.type === 'EXPENSE' ? '-' : '+'}{formatMoney(tx.amount)}
+                        <td
+                          className={`py-3.5 px-4 text-right font-bold ${
+                            isIncome ? 'text-emerald-600' : isExpense ? 'text-red-600' : 'text-slate-700'
+                          }`}
+                        >
+                          {isExpense ? '-' : isIncome ? '+' : ''}{formatCurrency(tx.amount)}
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-3.5 px-4 text-center">
                           <button
                             onClick={() => handleDeleteTx(tx.id)}
-                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                            aria-label="Delete transaction"
+                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete entry"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 size={16} />
                           </button>
                         </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* Financial Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">Financial Summary Report</h3>
+                    <p className="text-xs text-slate-500">Detailed overview of inflows, outflows, and savings</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Range Filters */}
+              <div className="flex items-center gap-2 my-4">
+                <span className="text-xs font-semibold text-slate-500">Period:</span>
+                {[
+                  { label: 'All Time', value: 'ALL' },
+                  { label: 'This Month', value: 'MONTH' },
+                  { label: 'Last 30 Days', value: '30DAYS' }
+                ].map((period) => (
+                  <button
+                    key={period.value}
+                    onClick={() => setReportRange(period.value)}
+                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors border ${
+                      reportRange === period.value
+                        ? 'bg-blue-50 border-blue-200 text-blue-700 font-bold'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">Total Inflow</span>
+                  <span className="text-base font-extrabold text-emerald-800">{formatCurrency(reportInflow)}</span>
+                </div>
+                <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 block">Total Outflow</span>
+                  <span className="text-base font-extrabold text-red-800">{formatCurrency(reportOutflow)}</span>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">Net Flow</span>
+                  <span className="text-base font-extrabold text-blue-800">{formatCurrency(reportInflow - reportOutflow)}</span>
+                </div>
+                <div className="p-3 bg-teal-50 rounded-xl border border-teal-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 block">To Savings</span>
+                  <span className="text-base font-extrabold text-teal-800">{formatCurrency(reportSavings)}</span>
+                </div>
+              </div>
+
+              {/* Scrollable Records */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden mt-3 max-h-48 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="p-2 font-semibold">Date</th>
+                      <th className="p-2 font-semibold">Type</th>
+                      <th className="p-2 font-semibold">Description</th>
+                      <th className="p-2 font-semibold text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reportList.map((tx) => (
+                      <tr key={tx.id}>
+                        <td className="p-2 text-slate-500">{new Date(tx.date).toLocaleDateString()}</td>
+                        <td className="p-2 font-semibold text-slate-700">{tx.type}</td>
+                        <td className="p-2 text-slate-800 truncate max-w-[160px]">{tx.description}</td>
+                        <td className="p-2 text-right font-bold text-slate-800">{formatCurrency(tx.amount)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Bottom Section: Report & Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Generate Report Section */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center">
-            <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" /> Generate Report
-            </h2>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" /> Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={reportStartDate}
-                    onChange={(e) => setReportStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" /> End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={reportEndDate}
-                    onChange={(e) => setReportEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleDownloadCSV}
-                className="w-full px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 mt-2"
-              >
-                <Download className="w-4 h-4" /> Download CSV Report
-              </button>
             </div>
-          </div>
 
-          {/* Expense Breakdown Pie Chart */}
-          {expensesOnly.length > 0 ? (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
-                <PieChartIcon className="w-5 h-5 text-blue-500" /> Expense Breakdown
-              </h2>
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={5}
-                      dataKey="value"
-                      nameKey="name"
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip 
-                      formatter={(value) => [formatMoney(value), 'Total']} 
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
-                    />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                  </PieChart>
-                </ResponsiveContainer>
+            {/* Modal Actions */}
+            <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-4">
+              <span className="text-xs text-slate-500">{reportList.length} total entries</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  <Printer size={14} /> Print
+                </button>
+                <button
+                  onClick={handleDownloadCSV}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+                >
+                  <Download size={14} /> Download CSV
+                </button>
               </div>
             </div>
-          ) : (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center">
-              <PieChartIcon className="w-12 h-12 text-slate-300 mb-3" />
-              <p className="text-slate-500 font-medium">No expenses yet.</p>
-              <p className="text-slate-400 text-sm mt-1">Log an expense to see your visual breakdown.</p>
-            </div>
-          )}
-
+          </div>
         </div>
-
-      </div>
+      )}
     </div>
   );
 }
