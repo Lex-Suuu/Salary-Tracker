@@ -14,7 +14,8 @@ import {
   Check,
   X,
   PieChart as PieChartIcon,
-  Printer
+  Printer,
+  Settings
 } from 'lucide-react';
 
 const INITIAL_EXPENSE_CATEGORIES = [
@@ -66,6 +67,10 @@ export default function App() {
 
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const fileInputRef = useRef(null);
+  const settingsMenuRef = useRef(null);
+
+  // Settings dropdown state
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
   // Ledger Filter & Report Modal State
   const [ledgerView, setLedgerView] = useState('ALL'); // 'ALL' | 'EXPENSE' | 'TRANSFER' | 'SAVINGS'
@@ -96,6 +101,17 @@ export default function App() {
     localStorage.setItem('salary_tracker_ledger', JSON.stringify(transactions));
     localStorage.setItem('salary_tracker_accounts', JSON.stringify(accounts));
   }, [transactions, accounts]);
+
+  // Click outside listener for Settings Menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setShowSettingsMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const showToast = (message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -231,6 +247,7 @@ export default function App() {
   };
 
   const handleClearAll = () => {
+    setShowSettingsMenu(false);
     if (window.confirm('Are you sure you want to completely clear all transactions and reset balances?')) {
       setTransactions([]);
       localStorage.removeItem('salary_tracker_ledger');
@@ -239,6 +256,7 @@ export default function App() {
   };
 
   const handleExportData = () => {
+    setShowSettingsMenu(false);
     const backup = { accounts, transactions };
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backup, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -251,6 +269,7 @@ export default function App() {
   };
 
   const handleImportData = (e) => {
+    setShowSettingsMenu(false);
     const fileReader = new FileReader();
     if (e.target.files && e.target.files[0]) {
       fileReader.readAsText(e.target.files[0], 'UTF-8');
@@ -417,7 +436,7 @@ export default function App() {
       )}
 
       {/* Header Toolbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-sm">
@@ -429,16 +448,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleClearAll}
-              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium rounded-lg transition-colors border border-red-200 shadow-sm"
-              title="Clear all transactions and reset balances"
-            >
-              <Trash2 size={16} /> Clear All
-            </button>
-
+          {/* Clean Top Action Bar with Settings Gear */}
+          <div className="flex items-center gap-2 relative">
             <button
               onClick={() => setShowReportModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded-lg transition-colors border border-blue-200 shadow-sm"
@@ -446,19 +457,56 @@ export default function App() {
               <FileText size={16} /> Generate Report
             </button>
 
-            <button
-              onClick={handleExportData}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-300 shadow-sm"
-            >
-              <Download size={16} /> Export
-            </button>
+            {/* Settings Gear Dropdown Toggle */}
+            <div className="relative" ref={settingsMenuRef}>
+              <button
+                onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                className={`p-2 rounded-lg border transition-all ${
+                  showSettingsMenu
+                    ? 'bg-slate-200 border-slate-300 text-slate-900'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700 shadow-sm'
+                }`}
+                title="Data & Storage Settings"
+              >
+                <Settings size={18} />
+              </button>
 
-            <button
-              onClick={() => fileInputRef.current.click()}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-300 shadow-sm"
-            >
-              <Upload size={16} /> Import
-            </button>
+              {/* Dropdown Menu */}
+              {showSettingsMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1.5 border-b border-slate-100 mb-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Data Options</span>
+                  </div>
+
+                  <button
+                    onClick={handleExportData}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                  >
+                    <Download size={14} className="text-slate-500" /> Export JSON Backup
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowSettingsMenu(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                  >
+                    <Upload size={14} className="text-slate-500" /> Import JSON Backup
+                  </button>
+
+                  <div className="border-t border-slate-100 my-1"></div>
+
+                  <button
+                    onClick={handleClearAll}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  >
+                    <Trash2 size={14} className="text-red-500" /> Clear All Data
+                  </button>
+                </div>
+              )}
+            </div>
+
             <input
               type="file"
               ref={fileInputRef}
