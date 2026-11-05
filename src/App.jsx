@@ -326,11 +326,6 @@ export default function App() {
     }
   };
 
-  const handleDeleteTx = (id) => {
-    setTransactions(transactions.filter((tx) => tx.id !== id));
-    showToast('Transaction removed');
-  };
-
   const handleClearAll = () => {
     setShowSettingsMenu(false);
     if (window.confirm('Are you sure you want to completely clear all transactions and reset balances?')) {
@@ -903,7 +898,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Transaction Ledger Table (Always Unhidden) */}
+        {/* Transaction Ledger Table (Clean Read-Only View) */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
@@ -951,7 +946,6 @@ export default function App() {
                     <th className="py-3 px-4 font-semibold">Description</th>
                     <th className="py-3 px-4 font-semibold">Category / Route</th>
                     <th className="py-3 px-4 font-semibold text-right">Amount</th>
-                    <th className="py-3 px-4 font-semibold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -996,15 +990,6 @@ export default function App() {
                           }`}
                         >
                           {isExpense ? '-' : isIncome ? '+' : ''}{formatCurrency(tx.amount, false)}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <button
-                            onClick={() => handleDeleteTx(tx.id)}
-                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Delete entry"
-                          >
-                            <Trash2 size={16} />
-                          </button>
                         </td>
                       </tr>
                     );
