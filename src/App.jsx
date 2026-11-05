@@ -256,7 +256,7 @@ export default function App() {
     setCardAmounts({ ...cardAmounts, [accId]: '' });
   };
 
-  // Helper: Current Calendar Month (For Total Expenses & Bar Breakdown)
+  // Helper: Current Calendar Month
   const isCurrentMonth = (dateString) => {
     if (!dateString) return false;
     const txDate = new Date(dateString);
@@ -267,7 +267,7 @@ export default function App() {
     );
   };
 
-  // Helper: Today's Date (For the Warning Threshold that resets daily)
+  // Helper: Today's Date
   const isToday = (dateString) => {
     if (!dateString) return false;
     const txDate = new Date(dateString);
@@ -332,7 +332,7 @@ export default function App() {
     setExpenseAmount('');
     setCustomCategory('');
 
-    // Daily warning trigger (evaluated on today's spending)
+    // Daily warning trigger
     if (nextTodayExpenses >= 1000 && todayExpenses < 1000) {
       showToast(`Daily Warning: Today's expenses reached ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
     } else if (nextTodayExpenses >= 800 && nextTodayExpenses < 1000) {
@@ -826,7 +826,7 @@ export default function App() {
           {/* Line Distribution Breakdown & Spending Threshold Warning */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
-              {/* Daily Warning Banner (Resets automatically every day) */}
+              {/* Daily Warning Banner */}
               {todayExpenses >= 1000 ? (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-red-700 text-xs font-semibold">
                   <AlertCircle size={18} className="shrink-0 text-red-600" />
@@ -851,7 +851,7 @@ export default function App() {
                   <div>
                     <h2 className="text-base font-bold text-slate-800">Expense Distribution</h2>
                     <p className="text-xs text-slate-500">
-                      Breakdown for {currentMonthName} (Resets at end of month) • Today: {formatCurrency(todayExpenses)}
+                      Breakdown across categories • Today: {formatCurrency(todayExpenses)}
                     </p>
                   </div>
                 </div>
