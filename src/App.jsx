@@ -257,25 +257,25 @@ export default function App() {
     setCardAmounts({ ...cardAmounts, [accId]: '' });
   };
 
-  // Calculations for Lifetime and Today's Expenses
-  const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
-  const totalExpenses = expenseTransactions.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
-
-  // Daily Expense Calculation (Resets every day)
-  const isToday = (dateString) => {
+  // Helper to determine if transaction was made in the current calendar month
+  const isCurrentMonth = (dateString) => {
     if (!dateString) return false;
-    const date = new Date(dateString);
-    const today = new Date();
+    const txDate = new Date(dateString);
+    const now = new Date();
     return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
+      txDate.getMonth() === now.getMonth() &&
+      txDate.getFullYear() === now.getFullYear()
     );
   };
 
-  const todayExpenses = expenseTransactions
-    .filter((tx) => isToday(tx.date))
-    .reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
+  // Month-scoped expenses (resets at the end of each month)
+  const currentMonthExpensesList = (transactions || []).filter(
+    (tx) => tx?.type === 'EXPENSE' && isCurrentMonth(tx?.date)
+  );
+  const totalMonthlyExpenses = currentMonthExpensesList.reduce(
+    (acc, tx) => acc + (parseFloat(tx.amount) || 0),
+    0
+  );
 
   const handleAddExpense = (e) => {
     e.preventDefault();
@@ -310,17 +310,17 @@ export default function App() {
       fromName: sourceAccount?.name || 'Unknown'
     };
 
-    const nextTodayExpenses = todayExpenses + amt;
+    const nextMonthlyExpenses = totalMonthlyExpenses + amt;
     setTransactions([newTx, ...transactions]);
     setDesc('');
     setExpenseAmount('');
     setCustomCategory('');
 
-    // Daily warning trigger
-    if (nextTodayExpenses >= 1000 && todayExpenses < 1000) {
-      showToast(`Daily Warning: Today's expenses reached ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ daily limit crossed)!`, 'warning');
-    } else if (nextTodayExpenses >= 800 && nextTodayExpenses < 1000) {
-      showToast(`Daily Notice: You've spent ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} today — almost ₱1,000!`, 'warning');
+    // Monthly threshold warnings
+    if (nextMonthlyExpenses >= 1000 && totalMonthlyExpenses < 1000) {
+      showToast(`Monthly Warning: Total expenses for this month reached ₱${nextMonthlyExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
+    } else if (nextMonthlyExpenses >= 800 && nextMonthlyExpenses < 1000) {
+      showToast(`Monthly Notice: You've spent ₱${nextMonthlyExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} this month — almost ₱1,000!`, 'warning');
     } else {
       showToast(`Logged expense: ₱${amt.toLocaleString()} (${finalCategory})`);
     }
@@ -335,7 +335,8 @@ export default function App() {
     }
   };
 
-  const categoryTotals = expenseTransactions.reduce((acc, tx) => {
+  // Monthly breakdown of categories
+  const categoryTotals = currentMonthExpensesList.reduce((acc, tx) => {
     const cat = tx?.category || 'Other';
     acc[cat] = (acc[cat] || 0) + (parseFloat(tx.amount) || 0);
     return acc;
@@ -343,7 +344,7 @@ export default function App() {
 
   const categoryList = Object.keys(categoryTotals).map((name, index) => {
     const amount = categoryTotals[name];
-    const percentage = totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0;
+    const percentage = totalMonthlyExpenses > 0 ? (amount / totalMonthlyExpenses) * 100 : 0;
     return {
       name,
       amount,
@@ -449,6 +450,8 @@ export default function App() {
       maximumFractionDigits: 2
     });
   };
+
+  const currentMonthName = new Date().toLocaleString('default', { month: 'long' });
 
   const colorStyles = {
     blue: {
@@ -809,22 +812,22 @@ export default function App() {
             </form>
           </div>
 
-          {/* Line Distribution Breakdown & Daily Spending Threshold Warning */}
+          {/* Line Distribution Breakdown & Monthly Resetting Expense Total */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
-              {/* Dynamic Daily Spending Warning Banner */}
-              {todayExpenses >= 1000 ? (
+              {/* Dynamic Monthly Spending Warning Banner */}
+              {totalMonthlyExpenses >= 1000 ? (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-red-700 text-xs font-semibold">
                   <AlertCircle size={18} className="shrink-0 text-red-600" />
                   <span>
-                    Daily Warning: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today, exceeding your ₱1,000 daily limit!
+                    Monthly Warning: You have spent <strong>{formatCurrency(totalMonthlyExpenses)}</strong> in {currentMonthName}, exceeding the ₱1,000 monthly limit!
                   </span>
                 </div>
-              ) : todayExpenses >= 800 ? (
+              ) : totalMonthlyExpenses >= 800 ? (
                 <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs font-semibold">
                   <AlertTriangle size={18} className="shrink-0 text-amber-600" />
                   <span>
-                    Daily Heads Up: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today. You are almost at your ₱1,000 daily limit.
+                    Monthly Heads Up: You have spent <strong>{formatCurrency(totalMonthlyExpenses)}</strong> in {currentMonthName}. You are almost at your ₱1,000 monthly limit.
                   </span>
                 </div>
               ) : null}
@@ -837,22 +840,24 @@ export default function App() {
                   <div>
                     <h2 className="text-base font-bold text-slate-800">Expense Distribution</h2>
                     <p className="text-xs text-slate-500">
-                      Breakdown across all categories • Today: {formatCurrency(todayExpenses)}
+                      Breakdown for {currentMonthName} (Resets at end of month)
                     </p>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">Total Expenses</span>
-                  <span className={`text-xl font-extrabold ${todayExpenses >= 1000 ? 'text-red-700' : 'text-red-600'}`}>
-                    {formatCurrency(totalExpenses, false)}
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+                    Total Expenses ({currentMonthName})
+                  </span>
+                  <span className={`text-xl font-extrabold ${totalMonthlyExpenses >= 1000 ? 'text-red-700' : 'text-red-600'}`}>
+                    {formatCurrency(totalMonthlyExpenses, false)}
                   </span>
                 </div>
               </div>
 
               {/* Progress Line */}
               <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex my-4 border border-slate-200/60">
-                {totalExpenses === 0 ? (
+                {totalMonthlyExpenses === 0 ? (
                   <div className="w-full h-full bg-slate-200" />
                 ) : (
                   categoryList.map((cat, idx) => (
@@ -872,7 +877,7 @@ export default function App() {
               {/* Category Rows with Badges */}
               <div className="space-y-2 mt-4 max-h-56 overflow-y-auto pr-1">
                 {categoryList.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-4 text-center">No expenses recorded yet.</p>
+                  <p className="text-xs text-slate-400 italic py-4 text-center">No expenses recorded for this month yet.</p>
                 ) : (
                   categoryList.map((cat, idx) => (
                     <div
@@ -898,7 +903,7 @@ export default function App() {
 
             <div className="flex justify-between items-center text-xs text-slate-400 pt-3 border-t border-slate-100 mt-4">
               <span>{accounts.length} linked accounts</span>
-              <span>{categoryList.length} active categories</span>
+              <span>{categoryList.length} active categories this month</span>
             </div>
           </div>
         </section>
