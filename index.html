@@ -9,6 +9,16 @@
     <!-- This is the line that brings in all the styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+<link rel="manifest" href="/Salary-Tracker/manifest.json" />
+    <meta name="theme-color" content="#2563eb" />
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/Salary-Tracker/sw.js');
+        });
+      }
+    </script>
+
   </head>
   <body>
     <div id="root"></div>
