@@ -6,6 +6,7 @@ import {
   Plus,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Calendar,
   FileText,
   Edit2,
@@ -77,6 +78,11 @@ export default function App() {
     }
   });
 
+  // Independent Total balance hide/show state
+  const [hideTotalBalance, setHideTotalBalance] = useState(() => {
+    return localStorage.getItem('salary_tracker_hide_total') === 'true';
+  });
+
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const settingsMenuRef = useRef(null);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
@@ -91,7 +97,9 @@ export default function App() {
   // Ledger Filter & Report Modal State
   const [ledgerView, setLedgerView] = useState('ALL'); // 'ALL' | 'EXPENSE' | 'TRANSFER' | 'SAVINGS'
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportRange, setReportRange] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'TODAY'
+  const [reportRange, setReportRange] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'TODAY' | 'CUSTOM'
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   // Per-card action states
   const [cardModes, setCardModes] = useState({
@@ -113,7 +121,8 @@ export default function App() {
     localStorage.setItem('salary_tracker_ledger', JSON.stringify(transactions));
     localStorage.setItem('salary_tracker_accounts', JSON.stringify(accounts));
     localStorage.setItem('salary_tracker_hidden_accounts', JSON.stringify(hiddenAccounts));
-  }, [transactions, accounts, hiddenAccounts]);
+    localStorage.setItem('salary_tracker_hide_total', hideTotalBalance);
+  }, [transactions, accounts, hiddenAccounts, hideTotalBalance]);
 
   // Click outside to close settings menu
   useEffect(() => {
@@ -130,7 +139,7 @@ export default function App() {
     setNotification({ show: true, message, type });
     setTimeout(() => {
       setNotification({ show: false, message: '', type: 'success' });
-    }, 3500);
+    }, 4000);
   };
 
   const toggleAccountVisibility = (accId) => {
@@ -160,7 +169,6 @@ export default function App() {
 
   // Calculate Total Net Worth across all accounts
   const totalBalance = Object.values(balances).reduce((sum, val) => sum + val, 0);
-  const anyAccountHidden = accounts.some((acc) => !!hiddenAccounts[acc.id]);
 
   const handleStartEdit = (acc) => {
     setEditingAccountId(acc.id);
@@ -214,17 +222,18 @@ export default function App() {
     const mode = cardModes[accId] || (accId === accounts[0]?.id ? 'deposit' : 'transfer');
 
     if (mode === 'deposit' || accId === accounts[0]?.id) {
+      const isMain = accId === accounts[0]?.id;
       const newTx = {
         id: Date.now().toString(),
         date: new Date().toISOString(),
         type: 'INCOME',
-        description: `Deposit (${targetAccount?.name || 'Account'})`,
+        description: isMain ? `Deposit (${targetAccount?.name || 'Account'})` : `Extra Money (${targetAccount?.name || 'Account'})`,
         amount: amt,
         toId: targetAccount?.id || accId,
         toName: targetAccount?.name || 'Account'
       };
       setTransactions([newTx, ...transactions]);
-      showToast(`Deposited ₱${amt.toLocaleString()} to ${targetAccount?.name}`);
+      showToast(`Added ₱${amt.toLocaleString()} to ${targetAccount?.name}`);
     } else {
       if (amt > (balances[mainAccount?.id] || 0)) {
         showToast(`Insufficient funds in ${mainAccount?.name || 'Main Account'}`, 'error');
@@ -247,6 +256,10 @@ export default function App() {
 
     setCardAmounts({ ...cardAmounts, [accId]: '' });
   };
+
+  // Calculations for Expense Distribution & Thresholds
+  const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
+  const totalExpenses = expenseTransactions.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
 
   const handleAddExpense = (e) => {
     e.preventDefault();
@@ -281,11 +294,19 @@ export default function App() {
       fromName: sourceAccount?.name || 'Unknown'
     };
 
+    const nextTotalExpenses = totalExpenses + amt;
     setTransactions([newTx, ...transactions]);
     setDesc('');
     setExpenseAmount('');
     setCustomCategory('');
-    showToast(`Logged expense: ₱${amt.toLocaleString()} (${finalCategory})`);
+
+    if (nextTotalExpenses >= 1000 && totalExpenses < 1000) {
+      showToast(`Warning: Total expenses reached ₱${nextTotalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
+    } else if (nextTotalExpenses >= 800 && nextTotalExpenses < 1000) {
+      showToast(`Notice: You've spent ₱${nextTotalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} — almost ₱1,000!`, 'warning');
+    } else {
+      showToast(`Logged expense: ₱${amt.toLocaleString()} (${finalCategory})`);
+    }
   };
 
   const handleDeleteTx = (id) => {
@@ -301,10 +322,6 @@ export default function App() {
       showToast('All transaction records cleared');
     }
   };
-
-  // Calculations for Expense Distribution
-  const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
-  const totalExpenses = expenseTransactions.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
 
   const categoryTotals = expenseTransactions.reduce((acc, tx) => {
     const cat = tx?.category || 'Other';
@@ -341,7 +358,7 @@ export default function App() {
     return true; // 'ALL'
   });
 
-  // Report Date Filter (Today, This Week, This Month, All Time)
+  // Report Date Filter (Today, This Week, This Month, All Time, Custom Range)
   const getReportTransactions = () => {
     const now = new Date();
     return (transactions || []).filter((tx) => {
@@ -364,6 +381,12 @@ export default function App() {
           txDate.getMonth() === now.getMonth() &&
           txDate.getFullYear() === now.getFullYear()
         );
+      }
+      if (reportRange === 'CUSTOM') {
+        if (!customStartDate && !customEndDate) return true;
+        const start = customStartDate ? new Date(customStartDate + 'T00:00:00') : new Date('1970-01-01');
+        const end = customEndDate ? new Date(customEndDate + 'T23:59:59') : new Date('2099-12-31');
+        return txDate >= start && txDate <= end;
       }
       return true; // 'ALL'
     });
@@ -460,10 +483,20 @@ export default function App() {
       {notification.show && (
         <div
           className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all duration-300 ${
-            notification.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'
+            notification.type === 'error'
+              ? 'bg-red-600'
+              : notification.type === 'warning'
+              ? 'bg-amber-600'
+              : 'bg-emerald-600'
           }`}
         >
-          {notification.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+          {notification.type === 'error' ? (
+            <AlertCircle size={20} />
+          ) : notification.type === 'warning' ? (
+            <AlertTriangle size={20} />
+          ) : (
+            <CheckCircle2 size={20} />
+          )}
           <span>{notification.message}</span>
         </div>
       )}
@@ -483,12 +516,24 @@ export default function App() {
 
           {/* Action Bar: Total Balance Badge, Generate Report, and Settings Gear Icon */}
           <div className="flex items-center gap-2.5 relative">
-            {/* Total Balance Pill */}
+            {/* Total Balance Pill with its own Eye toggle */}
             <div className="flex items-center gap-2 bg-slate-100/90 border border-slate-200/90 px-3 py-1.5 rounded-lg shadow-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total:</span>
               <span className="text-sm font-extrabold text-slate-800 tracking-tight">
-                {formatCurrency(totalBalance, anyAccountHidden)}
+                {formatCurrency(totalBalance, hideTotalBalance)}
               </span>
+              <button
+                type="button"
+                onClick={() => setHideTotalBalance(!hideTotalBalance)}
+                className={`p-0.5 ml-0.5 rounded transition-colors ${
+                  hideTotalBalance
+                    ? 'text-slate-800 hover:text-slate-900'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+                title={hideTotalBalance ? 'Show Total Balance' : 'Hide Total Balance'}
+              >
+                {hideTotalBalance ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
             </div>
 
             <button
@@ -638,7 +683,7 @@ export default function App() {
                           currentMode === 'deposit' ? 'text-slate-900 underline font-bold' : 'text-slate-400 hover:text-slate-600'
                         }`}
                       >
-                        + Direct Income
+                        + Extra Money
                       </button>
                     </div>
                   )}
@@ -747,9 +792,26 @@ export default function App() {
             </form>
           </div>
 
-          {/* Line Distribution Breakdown */}
+          {/* Line Distribution Breakdown & Spending Threshold Warning */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
+              {/* Dynamic Spending Warning Banner */}
+              {totalExpenses >= 1000 ? (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-red-700 text-xs font-semibold">
+                  <AlertCircle size={18} className="shrink-0 text-red-600" />
+                  <span>
+                    Warning: Total expenses have reached <strong>{formatCurrency(totalExpenses)}</strong>, exceeding the ₱1,000 threshold limit!
+                  </span>
+                </div>
+              ) : totalExpenses >= 800 ? (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs font-semibold">
+                  <AlertTriangle size={18} className="shrink-0 text-amber-600" />
+                  <span>
+                    Heads up! You have spent <strong>{formatCurrency(totalExpenses)}</strong>. You are almost at your ₱1,000 spending limit.
+                  </span>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
                   <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
@@ -763,7 +825,9 @@ export default function App() {
 
                 <div className="text-right">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">Total Expenses</span>
-                  <span className="text-xl font-extrabold text-red-600">{formatCurrency(totalExpenses, false)}</span>
+                  <span className={`text-xl font-extrabold ${totalExpenses >= 1000 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
+                    {formatCurrency(totalExpenses, false)}
+                  </span>
                 </div>
               </div>
 
@@ -820,7 +884,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Transaction Ledger Table */}
+        {/* Transaction Ledger Table (Always Unhidden) */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
@@ -875,7 +939,6 @@ export default function App() {
                   {filteredTransactions.map((tx) => {
                     const isExpense = tx.type === 'EXPENSE';
                     const isIncome = tx.type === 'INCOME';
-                    const isTxHidden = (tx.fromId && hiddenAccounts[tx.fromId]) || (tx.toId && hiddenAccounts[tx.toId]);
 
                     return (
                       <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
@@ -913,7 +976,7 @@ export default function App() {
                             isIncome ? 'text-emerald-600' : isExpense ? 'text-red-600' : 'text-slate-700'
                           }`}
                         >
-                          {isExpense ? '-' : isIncome ? '+' : ''}{formatCurrency(tx.amount, isTxHidden)}
+                          {isExpense ? '-' : isIncome ? '+' : ''}{formatCurrency(tx.amount, false)}
                         </td>
                         <td className="py-3.5 px-4 text-center">
                           <button
@@ -1050,14 +1113,15 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Range Filters: Today, This Week, This Month, All Time */}
-              <div className="flex items-center gap-2 my-4">
+              {/* Range Filters: Today, This Week, This Month, All Time, Custom Range */}
+              <div className="flex flex-wrap items-center gap-2 my-4">
                 <span className="text-xs font-semibold text-slate-500">Period:</span>
                 {[
                   { label: 'Today', value: 'TODAY' },
                   { label: 'This Week', value: 'WEEK' },
                   { label: 'This Month', value: 'MONTH' },
-                  { label: 'All Time', value: 'ALL' }
+                  { label: 'All Time', value: 'ALL' },
+                  { label: 'Custom Range', value: 'CUSTOM' }
                 ].map((period) => (
                   <button
                     key={period.value}
@@ -1072,6 +1136,42 @@ export default function App() {
                   </button>
                 ))}
               </div>
+
+              {/* Custom Date Range Picker Inputs */}
+              {reportRange === 'CUSTOM' && (
+                <div className="flex flex-wrap items-center gap-3 p-3 bg-blue-50/50 border border-blue-100 rounded-xl mb-4 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-bold text-slate-600">From:</label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="px-2.5 py-1 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-bold text-slate-600">To:</label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="px-2.5 py-1 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  {(customStartDate || customEndDate) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomStartDate('');
+                        setCustomEndDate('');
+                      }}
+                      className="text-xs text-blue-600 hover:underline font-medium ml-auto"
+                    >
+                      Clear Dates
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
@@ -1105,14 +1205,22 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {reportList.map((tx) => (
-                      <tr key={tx.id}>
-                        <td className="p-2 text-slate-500">{new Date(tx.date).toLocaleDateString()}</td>
-                        <td className="p-2 font-semibold text-slate-700">{tx.type}</td>
-                        <td className="p-2 text-slate-800 truncate max-w-[160px]">{tx.description}</td>
-                        <td className="p-2 text-right font-bold text-slate-800">{formatCurrency(tx.amount)}</td>
+                    {reportList.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="p-4 text-center text-slate-400 italic">
+                          No transactions found for this date range.
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      reportList.map((tx) => (
+                        <tr key={tx.id}>
+                          <td className="p-2 text-slate-500">{new Date(tx.date).toLocaleDateString()}</td>
+                          <td className="p-2 font-semibold text-slate-700">{tx.type}</td>
+                          <td className="p-2 text-slate-800 truncate max-w-[160px]">{tx.description}</td>
+                          <td className="p-2 text-right font-bold text-slate-800">{formatCurrency(tx.amount)}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
