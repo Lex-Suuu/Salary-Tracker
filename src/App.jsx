@@ -95,9 +95,9 @@ export default function App() {
   const [newBankColor, setNewBankColor] = useState('blue');
 
   // Ledger Filter & Report Modal State
-  const [ledgerView, setLedgerView] = useState('ALL'); // 'ALL' | 'EXPENSE' | 'TRANSFER' | 'SAVINGS'
+  const [ledgerView, setLedgerView] = useState('ALL');
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportRange, setReportRange] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'TODAY' | 'CUSTOM'
+  const [reportRange, setReportRange] = useState('ALL');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
@@ -167,7 +167,6 @@ export default function App() {
     }
   });
 
-  // Calculate Total Net Worth across all accounts
   const totalBalance = Object.values(balances).reduce((sum, val) => sum + val, 0);
 
   const handleStartEdit = (acc) => {
@@ -257,7 +256,7 @@ export default function App() {
     setCardAmounts({ ...cardAmounts, [accId]: '' });
   };
 
-  // Helper to determine if transaction was made in the current calendar month
+  // Helper: Current Calendar Month (For Total Expenses & Bar Breakdown)
   const isCurrentMonth = (dateString) => {
     if (!dateString) return false;
     const txDate = new Date(dateString);
@@ -268,14 +267,31 @@ export default function App() {
     );
   };
 
-  // Month-scoped expenses (resets at the end of each month)
-  const currentMonthExpensesList = (transactions || []).filter(
-    (tx) => tx?.type === 'EXPENSE' && isCurrentMonth(tx?.date)
-  );
+  // Helper: Today's Date (For the Warning Threshold that resets daily)
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const txDate = new Date(dateString);
+    const today = new Date();
+    return (
+      txDate.getDate() === today.getDate() &&
+      txDate.getMonth() === today.getMonth() &&
+      txDate.getFullYear() === today.getFullYear()
+    );
+  };
+
+  const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
+
+  // Month-scoped expenses (Resets end of month)
+  const currentMonthExpensesList = expenseTransactions.filter((tx) => isCurrentMonth(tx?.date));
   const totalMonthlyExpenses = currentMonthExpensesList.reduce(
     (acc, tx) => acc + (parseFloat(tx.amount) || 0),
     0
   );
+
+  // Day-scoped expenses (Resets every day)
+  const todayExpenses = expenseTransactions
+    .filter((tx) => isToday(tx?.date))
+    .reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
 
   const handleAddExpense = (e) => {
     e.preventDefault();
@@ -310,17 +326,17 @@ export default function App() {
       fromName: sourceAccount?.name || 'Unknown'
     };
 
-    const nextMonthlyExpenses = totalMonthlyExpenses + amt;
+    const nextTodayExpenses = todayExpenses + amt;
     setTransactions([newTx, ...transactions]);
     setDesc('');
     setExpenseAmount('');
     setCustomCategory('');
 
-    // Monthly threshold warnings
-    if (nextMonthlyExpenses >= 1000 && totalMonthlyExpenses < 1000) {
-      showToast(`Monthly Warning: Total expenses for this month reached ₱${nextMonthlyExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
-    } else if (nextMonthlyExpenses >= 800 && nextMonthlyExpenses < 1000) {
-      showToast(`Monthly Notice: You've spent ₱${nextMonthlyExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} this month — almost ₱1,000!`, 'warning');
+    // Daily warning trigger (evaluated on today's spending)
+    if (nextTodayExpenses >= 1000 && todayExpenses < 1000) {
+      showToast(`Daily Warning: Today's expenses reached ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
+    } else if (nextTodayExpenses >= 800 && nextTodayExpenses < 1000) {
+      showToast(`Daily Notice: You've spent ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} today — almost ₱1,000!`, 'warning');
     } else {
       showToast(`Logged expense: ₱${amt.toLocaleString()} (${finalCategory})`);
     }
@@ -368,7 +384,7 @@ export default function App() {
         catText.includes('savings')
       );
     }
-    return true; // 'ALL'
+    return true;
   });
 
   // Report Date Filter (Today, This Week, This Month, All Time, Custom Range)
@@ -401,7 +417,7 @@ export default function App() {
         const end = customEndDate ? new Date(customEndDate + 'T23:59:59') : new Date('2099-12-31');
         return txDate >= start && txDate <= end;
       }
-      return true; // 'ALL'
+      return true;
     });
   };
 
@@ -572,7 +588,6 @@ export default function App() {
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Reports & Tools</span>
                   </div>
 
-                  {/* Generate Report Option */}
                   <button
                     onClick={() => {
                       setShowSettingsMenu(false);
@@ -583,7 +598,6 @@ export default function App() {
                     <FileText size={15} className="text-blue-600" /> Generate Report
                   </button>
 
-                  {/* Add New Bank Option */}
                   <button
                     onClick={() => {
                       setShowSettingsMenu(false);
@@ -596,7 +610,6 @@ export default function App() {
 
                   <div className="border-t border-slate-100 my-1"></div>
 
-                  {/* Clear All Data Option */}
                   <button
                     onClick={handleClearAll}
                     className="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
@@ -656,7 +669,6 @@ export default function App() {
                     )}
 
                     <div className="flex items-center gap-1.5">
-                      {/* Individual Eye Toggle Button */}
                       <button
                         onClick={() => toggleAccountVisibility(acc.id)}
                         className={`p-1 rounded-md transition-colors ${
@@ -675,7 +687,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Individual Account Balance with Eye Mask */}
                   <div className={`text-3xl font-extrabold ${styles.text} mb-4 tracking-tight`}>
                     {formatCurrency(balances[acc.id] || 0, isCardHidden)}
                   </div>
@@ -812,22 +823,22 @@ export default function App() {
             </form>
           </div>
 
-          {/* Line Distribution Breakdown & Monthly Resetting Expense Total */}
+          {/* Line Distribution Breakdown & Spending Threshold Warning */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
-              {/* Dynamic Monthly Spending Warning Banner */}
-              {totalMonthlyExpenses >= 1000 ? (
+              {/* Daily Warning Banner (Resets automatically every day) */}
+              {todayExpenses >= 1000 ? (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-red-700 text-xs font-semibold">
                   <AlertCircle size={18} className="shrink-0 text-red-600" />
                   <span>
-                    Monthly Warning: You have spent <strong>{formatCurrency(totalMonthlyExpenses)}</strong> in {currentMonthName}, exceeding the ₱1,000 monthly limit!
+                    Daily Warning: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today, exceeding your ₱1,000 daily limit! (Resets tomorrow)
                   </span>
                 </div>
-              ) : totalMonthlyExpenses >= 800 ? (
+              ) : todayExpenses >= 800 ? (
                 <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs font-semibold">
                   <AlertTriangle size={18} className="shrink-0 text-amber-600" />
                   <span>
-                    Monthly Heads Up: You have spent <strong>{formatCurrency(totalMonthlyExpenses)}</strong> in {currentMonthName}. You are almost at your ₱1,000 monthly limit.
+                    Daily Heads Up: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today. You are almost at your ₱1,000 daily limit.
                   </span>
                 </div>
               ) : null}
@@ -840,7 +851,7 @@ export default function App() {
                   <div>
                     <h2 className="text-base font-bold text-slate-800">Expense Distribution</h2>
                     <p className="text-xs text-slate-500">
-                      Breakdown for {currentMonthName} (Resets at end of month)
+                      Breakdown for {currentMonthName} (Resets at end of month) • Today: {formatCurrency(todayExpenses)}
                     </p>
                   </div>
                 </div>
@@ -849,7 +860,7 @@ export default function App() {
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
                     Total Expenses ({currentMonthName})
                   </span>
-                  <span className={`text-xl font-extrabold ${totalMonthlyExpenses >= 1000 ? 'text-red-700' : 'text-red-600'}`}>
+                  <span className="text-xl font-extrabold text-red-600">
                     {formatCurrency(totalMonthlyExpenses, false)}
                   </span>
                 </div>
@@ -1127,7 +1138,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Range Filters: Today, This Week, This Month, All Time, Custom Range */}
+              {/* Range Filters */}
               <div className="flex flex-wrap items-center gap-2 my-4">
                 <span className="text-xs font-semibold text-slate-500">Period:</span>
                 {[
@@ -1151,7 +1162,7 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Custom Date Range Picker Inputs */}
+              {/* Custom Date Inputs */}
               {reportRange === 'CUSTOM' && (
                 <div className="flex flex-wrap items-center gap-3 p-3 bg-blue-50/50 border border-blue-100 rounded-xl mb-4 animate-in fade-in duration-150">
                   <div className="flex items-center gap-1.5">
