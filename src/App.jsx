@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Wallet,
   TrendingDown,
-  Trash2,
   Plus,
   CheckCircle2,
   AlertCircle,
@@ -18,7 +17,8 @@ import {
   Settings,
   Eye,
   EyeOff,
-  Building2
+  Building2,
+  Trash2
 } from 'lucide-react';
 
 const INITIAL_EXPENSE_CATEGORIES = [
@@ -526,9 +526,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Action Bar: Total Balance Badge, Generate Report, and Settings Gear Icon */}
+          {/* Action Bar: Total Balance Badge and Settings Gear Dropdown */}
           <div className="flex items-center gap-2.5 relative">
-            {/* Total Balance Pill with its own Eye toggle */}
+            {/* Total Balance Pill */}
             <div className="flex items-center gap-2 bg-slate-100/90 border border-slate-200/90 px-3 py-1.5 rounded-lg shadow-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total:</span>
               <span className="text-sm font-extrabold text-slate-800 tracking-tight">
@@ -548,13 +548,6 @@ export default function App() {
               </button>
             </div>
 
-            <button
-              onClick={() => setShowReportModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded-lg transition-colors border border-blue-200 shadow-sm"
-            >
-              <FileText size={16} /> Generate Report
-            </button>
-
             {/* Settings Gear Dropdown Toggle */}
             <div className="relative" ref={settingsMenuRef}>
               <button
@@ -564,34 +557,46 @@ export default function App() {
                     ? 'bg-slate-200 border-slate-300 text-slate-900'
                     : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700 shadow-sm'
                 }`}
-                title="Settings"
+                title="Settings & Tools"
               >
                 <Settings size={18} />
               </button>
 
               {/* Settings Dropdown Menu */}
               {showSettingsMenu && (
-                <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-1.5 border-b border-slate-100 mb-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Account & Storage</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Reports & Tools</span>
                   </div>
 
-                  {/* Add New Bank Button */}
+                  {/* Generate Report Option */}
+                  <button
+                    onClick={() => {
+                      setShowSettingsMenu(false);
+                      setShowReportModal(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors"
+                  >
+                    <FileText size={15} className="text-blue-600" /> Generate Report
+                  </button>
+
+                  {/* Add New Bank Option */}
                   <button
                     onClick={() => {
                       setShowSettingsMenu(false);
                       setShowAddBankModal(true);
                     }}
-                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors"
                   >
-                    <Building2 size={15} className="text-blue-600" /> + Add New Bank
+                    <Building2 size={15} className="text-blue-600" /> Add New Bank
                   </button>
 
                   <div className="border-t border-slate-100 my-1"></div>
 
+                  {/* Clear All Data Option */}
                   <button
                     onClick={handleClearAll}
-                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                   >
                     <Trash2 size={14} className="text-red-500" /> Clear All Data
                   </button>
@@ -807,7 +812,7 @@ export default function App() {
           {/* Line Distribution Breakdown & Daily Spending Threshold Warning */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
-              {/* Dynamic Daily Spending Warning Banner (Resets Every Day) */}
+              {/* Dynamic Daily Spending Warning Banner */}
               {todayExpenses >= 1000 ? (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-red-700 text-xs font-semibold">
                   <AlertCircle size={18} className="shrink-0 text-red-600" />
@@ -898,7 +903,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Transaction Ledger Table (Clean Read-Only View) */}
+        {/* Transaction Ledger Table (Always Unhidden) */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
