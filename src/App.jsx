@@ -257,9 +257,25 @@ export default function App() {
     setCardAmounts({ ...cardAmounts, [accId]: '' });
   };
 
-  // Calculations for Expense Distribution & Thresholds
+  // Calculations for Lifetime and Today's Expenses
   const expenseTransactions = (transactions || []).filter((tx) => tx?.type === 'EXPENSE');
   const totalExpenses = expenseTransactions.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
+
+  // Daily Expense Calculation (Resets every day)
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
+  };
+
+  const todayExpenses = expenseTransactions
+    .filter((tx) => isToday(tx.date))
+    .reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
 
   const handleAddExpense = (e) => {
     e.preventDefault();
@@ -294,16 +310,17 @@ export default function App() {
       fromName: sourceAccount?.name || 'Unknown'
     };
 
-    const nextTotalExpenses = totalExpenses + amt;
+    const nextTodayExpenses = todayExpenses + amt;
     setTransactions([newTx, ...transactions]);
     setDesc('');
     setExpenseAmount('');
     setCustomCategory('');
 
-    if (nextTotalExpenses >= 1000 && totalExpenses < 1000) {
-      showToast(`Warning: Total expenses reached ₱${nextTotalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
-    } else if (nextTotalExpenses >= 800 && nextTotalExpenses < 1000) {
-      showToast(`Notice: You've spent ₱${nextTotalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} — almost ₱1,000!`, 'warning');
+    // Daily warning trigger
+    if (nextTodayExpenses >= 1000 && todayExpenses < 1000) {
+      showToast(`Daily Warning: Today's expenses reached ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ daily limit crossed)!`, 'warning');
+    } else if (nextTodayExpenses >= 800 && nextTodayExpenses < 1000) {
+      showToast(`Daily Notice: You've spent ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} today — almost ₱1,000!`, 'warning');
     } else {
       showToast(`Logged expense: ₱${amt.toLocaleString()} (${finalCategory})`);
     }
@@ -792,22 +809,22 @@ export default function App() {
             </form>
           </div>
 
-          {/* Line Distribution Breakdown & Spending Threshold Warning */}
+          {/* Line Distribution Breakdown & Daily Spending Threshold Warning */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
-              {/* Dynamic Spending Warning Banner */}
-              {totalExpenses >= 1000 ? (
+              {/* Dynamic Daily Spending Warning Banner (Resets Every Day) */}
+              {todayExpenses >= 1000 ? (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-red-700 text-xs font-semibold">
                   <AlertCircle size={18} className="shrink-0 text-red-600" />
                   <span>
-                    Warning: Total expenses have reached <strong>{formatCurrency(totalExpenses)}</strong>, exceeding the ₱1,000 threshold limit!
+                    Daily Warning: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today, exceeding your ₱1,000 daily limit!
                   </span>
                 </div>
-              ) : totalExpenses >= 800 ? (
+              ) : todayExpenses >= 800 ? (
                 <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs font-semibold">
                   <AlertTriangle size={18} className="shrink-0 text-amber-600" />
                   <span>
-                    Heads up! You have spent <strong>{formatCurrency(totalExpenses)}</strong>. You are almost at your ₱1,000 spending limit.
+                    Daily Heads Up: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today. You are almost at your ₱1,000 daily limit.
                   </span>
                 </div>
               ) : null}
@@ -819,13 +836,15 @@ export default function App() {
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-slate-800">Expense Distribution</h2>
-                    <p className="text-xs text-slate-500">Breakdown across all logged categories</p>
+                    <p className="text-xs text-slate-500">
+                      Breakdown across all categories • Today: {formatCurrency(todayExpenses)}
+                    </p>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">Total Expenses</span>
-                  <span className={`text-xl font-extrabold ${totalExpenses >= 1000 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
+                  <span className={`text-xl font-extrabold ${todayExpenses >= 1000 ? 'text-red-700' : 'text-red-600'}`}>
                     {formatCurrency(totalExpenses, false)}
                   </span>
                 </div>
