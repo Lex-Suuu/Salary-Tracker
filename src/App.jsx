@@ -91,10 +91,12 @@ export default function App() {
     }
   });
 
+  // Controls ONLY the Total Net Worth display
   const [hideNetWorth, setHideNetWorth] = useState(() => {
     return localStorage.getItem('salary_tracker_hide_total') === 'true';
   });
 
+  // Controls individual card eye states independently
   const [hiddenAccounts, setHiddenAccounts] = useState(() => {
     try {
       const saved = localStorage.getItem('salary_tracker_hidden_accounts_v2');
@@ -666,9 +668,7 @@ export default function App() {
               {/* CALENDAR SUBVIEW */}
               {expenseSubView === 'calendar' && (
                 <div className="space-y-3">
-                  {/* Calendar Widget */}
                   <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-sm">
-                    {/* Header Month / Navigation */}
                     <div className="flex items-center justify-between mb-4">
                       <button
                         onClick={prevMonth}
@@ -685,7 +685,6 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Day Headers */}
                     <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
                       <span>S</span>
                       <span>M</span>
@@ -696,7 +695,6 @@ export default function App() {
                       <span>S</span>
                     </div>
 
-                    {/* Day Cells */}
                     <div className="grid grid-cols-7 gap-1 text-center text-xs">
                       {Array.from({ length: firstDayIndex }).map((_, i) => (
                         <div key={`empty-${i}`} className="h-8" />
@@ -737,7 +735,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Day Expense Summary Breakdown */}
                   <div className="bg-white rounded-3xl p-4 border border-slate-200/70 shadow-sm space-y-2">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <span className="text-xs font-bold text-slate-700">Date: {selectedCalendarDate}</span>
@@ -765,7 +762,7 @@ export default function App() {
           {/* ===================== NET WORTH VIEW ===================== */}
           {mainTab === 'networth' && (
             <>
-              {/* Total Net Worth Card */}
+              {/* Total Net Worth Card (Controlled independently by its own Eye toggle) */}
               <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-sm relative overflow-hidden">
                 <div className="flex items-center justify-between text-slate-400 mb-1">
                   <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
@@ -780,8 +777,8 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className={`text-2xl font-black text-slate-900 tracking-tight tabular-nums transition-all duration-200 ${hideNetWorth ? 'blur-md select-none' : ''}`}>
-                  {formatCurrency(totalNetWorth)}
+                <div className="text-2xl font-black text-slate-900 tracking-tight tabular-nums transition-all duration-200">
+                  {formatCurrency(totalNetWorth, hideNetWorth)}
                 </div>
               </div>
 
@@ -810,7 +807,8 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-2 gap-2.5 pt-0.5">
                   {filteredAccounts.map((acc) => {
-                    const isMasked = !!hiddenAccounts[acc.id] || hideNetWorth;
+                    // Decoupled: Card mask is strictly dependent on hiddenAccounts[acc.id]
+                    const isMasked = !!hiddenAccounts[acc.id];
 
                     return (
                       <div
