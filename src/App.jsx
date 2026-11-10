@@ -92,8 +92,19 @@ export default function App() {
     }
   });
 
+  // Global Total Net Worth eye hide/show state
   const [hideNetWorth, setHideNetWorth] = useState(() => {
     return localStorage.getItem('salary_tracker_hide_total') === 'true';
+  });
+
+  // Per-account eye hide/show dictionary state
+  const [hiddenAccounts, setHiddenAccounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salary_tracker_hidden_accounts_v2');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
 
   // Account Card Action Modal (Deposit / Withdraw / Close)
@@ -119,13 +130,12 @@ export default function App() {
   const [newBankCategory, setNewBankCategory] = useState('Savings');
   const [newBankInitialBalance, setNewBankInitialBalance] = useState('');
 
-  // Helper: Detect whether an account is locked from being spent directly
+  // Protect savings / emergency funds from direct expense payments
   const isSpendingAccount = (acc) => {
     if (acc.isClosed) return false;
     const cat = (acc.category || '').toLowerCase();
     const name = (acc.name || '').toLowerCase();
 
-    // Prevent direct spending from Savings, MP2, Assets, Retirement, or Emergency Funds
     if (
       cat.includes('saving') ||
       cat.includes('asset') ||
@@ -139,7 +149,6 @@ export default function App() {
     return true;
   };
 
-  // Only active spending accounts can be used for payments
   const payableAccounts = accounts.filter(isSpendingAccount);
 
   // Expense form state
@@ -149,7 +158,6 @@ export default function App() {
   const [customCategory, setCustomCategory] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(() => payableAccounts[0]?.id || '');
 
-  // Keep expenseAccountId synced to a valid payment account
   useEffect(() => {
     if (!payableAccounts.some((a) => a.id === expenseAccountId)) {
       setExpenseAccountId(payableAccounts[0]?.id || '');
@@ -162,7 +170,8 @@ export default function App() {
     localStorage.setItem('salary_tracker_accounts_v2', JSON.stringify(accounts));
     localStorage.setItem('salary_tracker_ledger', JSON.stringify(transactions));
     localStorage.setItem('salary_tracker_hide_total', hideNetWorth);
-  }, [accounts, transactions, hideNetWorth]);
+    localStorage.setItem('salary_tracker_hidden_accounts_v2', JSON.stringify(hiddenAccounts));
+  }, [accounts, transactions, hideNetWorth, hiddenAccounts]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -179,6 +188,14 @@ export default function App() {
     setTimeout(() => {
       setNotification({ show: false, message: '', type: 'success' });
     }, 4000);
+  };
+
+  const toggleAccountVisibility = (e, accId) => {
+    e.stopPropagation(); // Prevents triggering card details modal
+    setHiddenAccounts((prev) => ({
+      ...prev,
+      [accId]: !prev[accId]
+    }));
   };
 
   const activeAccounts = accounts.filter((a) => !a.isClosed);
@@ -232,14 +249,13 @@ export default function App() {
     return <Layers size={17} className="text-slate-600" />;
   };
 
-  // Log Expense Submission
   const handleAddExpense = (e) => {
     e.preventDefault();
     const amt = parseFloat(expenseAmount);
     const sourceAccount = accounts.find((a) => a.id === expenseAccountId);
 
     if (!sourceAccount) {
-      showToast('Please select a valid daily spending account (Savings/Emergency funds cannot be used)', 'error');
+      showToast('Please select a valid daily spending account', 'error');
       return;
     }
     if (!isSpendingAccount(sourceAccount)) {
@@ -294,10 +310,12 @@ export default function App() {
       const resetAccounts = DEFAULT_ACCOUNTS.map(a => ({ ...a, balance: 0, isClosed: false }));
       setAccounts(resetAccounts);
       setTransactions([]);
+      setHiddenAccounts({});
       localStorage.removeItem('salary_tracker_accounts_v2');
       localStorage.removeItem('salary_tracker_ledger');
       localStorage.removeItem('salary_tracker_accounts');
       localStorage.removeItem('salary_tracker_hidden_accounts');
+      localStorage.removeItem('salary_tracker_hidden_accounts_v2');
       showToast('All accounts and net worth have been reset to ₱0.00');
     }
   };
@@ -590,7 +608,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* List vs Calendar Toggle Switch */}
                 <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
                   <button
                     onClick={() => setExpenseSubView('list')}
@@ -784,48 +801,71 @@ export default function App() {
                 ))}
               </div>
 
-              {/* 2-Column Accounts Grid */}
+              {/* 2-Column Accounts Grid with Individual Eye Toggles */}
               {filteredAccounts.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs italic bg-white rounded-3xl border border-slate-100">
                   {activeCategoryFilter === 'Closed' ? 'No closed accounts.' : 'No accounts in this category.'}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 pt-1">
-                  {filteredAccounts.map((acc) => (
-                    <div
-                      key={acc.id}
-                      onClick={() => {
-                        setSelectedAccount(acc);
-                        setIsClosingFlow(false);
-                        setTransferTargetId(transferTargets[0]?.id || '');
-                      }}
-                      className={`bg-white rounded-2xl p-4 border shadow-xs flex flex-col justify-between hover:border-slate-300 hover:shadow-md cursor-pointer transition-all active:scale-[0.98] ${
-                        acc.isClosed ? 'border-dashed border-slate-300 opacity-60' : 'border-slate-100'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold shadow-xs ${acc.iconColor || 'bg-slate-900 text-white'}`}>
-                            {acc.bankName}
+                  {filteredAccounts.map((acc) => {
+                    const isMasked = !!hiddenAccounts[acc.id] || hideNetWorth;
+
+                    return (
+                      <div
+                        key={acc.id}
+                        onClick={() => {
+                          setSelectedAccount(acc);
+                          setIsClosingFlow(false);
+                          setTransferTargetId(transferTargets[0]?.id || '');
+                        }}
+                        className={`bg-white rounded-2xl p-4 border shadow-xs flex flex-col justify-between hover:border-slate-300 hover:shadow-md cursor-pointer transition-all active:scale-[0.98] ${
+                          acc.isClosed ? 'border-dashed border-slate-300 opacity-60' : 'border-slate-100'
+                        }`}
+                      >
+                        <div>
+                          {/* Header row with bank badge, title, and individual eye toggle */}
+                          <div className="flex items-center justify-between mb-3 gap-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold shadow-xs shrink-0 ${acc.iconColor || 'bg-slate-900 text-white'}`}>
+                                {acc.bankName}
+                              </div>
+                              <span className="text-xs font-bold text-slate-800 truncate leading-snug">
+                                {acc.name}
+                              </span>
+                            </div>
+
+                            {/* Individual Eye Toggle Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => toggleAccountVisibility(e, acc.id)}
+                              className={`p-1 rounded-md transition-colors shrink-0 ${
+                                hiddenAccounts[acc.id]
+                                  ? 'bg-slate-200 text-slate-800'
+                                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                              }`}
+                              title={hiddenAccounts[acc.id] ? `Show ${acc.name} balance` : `Hide ${acc.name} balance`}
+                            >
+                              {hiddenAccounts[acc.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
                           </div>
-                          <span className="text-xs font-bold text-slate-800 line-clamp-1 leading-snug">
-                            {acc.name}
+
+                          {/* Account Balance */}
+                          <div className="text-base font-extrabold text-slate-900 tracking-tight">
+                            {formatCurrency(acc.balance, isMasked)}
+                          </div>
+                        </div>
+
+                        {/* Bottom Tag */}
+                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+                          <span className={acc.isClosed ? 'text-red-500 font-bold' : ''}>
+                            {acc.isClosed ? 'Closed' : acc.category}
                           </span>
-                        </div>
-
-                        <div className={`text-base font-extrabold text-slate-900 tracking-tight ${hideNetWorth ? 'blur-xs select-none' : ''}`}>
-                          {formatCurrency(acc.balance)}
+                          <ChevronRight size={12} className="text-slate-300" />
                         </div>
                       </div>
-
-                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-medium">
-                        <span className={acc.isClosed ? 'text-red-500 font-bold' : ''}>
-                          {acc.isClosed ? 'Closed' : acc.category}
-                        </span>
-                        <ChevronRight size={12} className="text-slate-300" />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>
@@ -842,7 +882,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* Log Expense Modal (Restricted: Savings/Emergency/Retirement accounts are excluded from Pay From) */}
+      {/* Log Expense Modal */}
       {showExpenseModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
@@ -889,7 +929,7 @@ export default function App() {
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {INITIAL_EXPENSE_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>{cat}</option>
@@ -910,7 +950,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Pay From: ONLY shows active spending wallets / cards */}
               <div>
                 <label className="text-[10px] font-bold text-slate-500 block mb-1">Pay From</label>
                 {payableAccounts.length === 0 ? (
@@ -925,7 +964,7 @@ export default function App() {
                   >
                     {payableAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.bankName}) - {formatCurrency(acc.balance)}
+                        {acc.name} ({acc.bankName}) - {formatCurrency(acc.balance, !!hiddenAccounts[acc.id])}
                       </option>
                     ))}
                   </select>
