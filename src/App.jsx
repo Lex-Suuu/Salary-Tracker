@@ -6,31 +6,38 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Calendar,
+  Calendar as CalendarIcon,
   FileText,
-  Edit2,
-  Check,
   X,
-  PieChart as PieChartIcon,
-  Printer,
-  Download,
-  Settings,
-  Eye,
-  EyeOff,
-  Building2,
-  Trash2,
-  Receipt,
-  Calculator,
   SlidersHorizontal,
   ChevronRight,
+  ChevronLeft,
   Archive,
   RotateCcw,
-  Users
+  Receipt,
+  ShoppingCart,
+  Fuel,
+  Home,
+  Utensils,
+  Zap,
+  Film,
+  HeartPulse,
+  Sparkles,
+  CreditCard,
+  Layers,
+  Building2,
+  Trash2,
+  Printer,
+  Download,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const INITIAL_EXPENSE_CATEGORIES = [
+  'Grocery & Essentials',
+  'Fuel / Gas',
   'Housing',
-  'Food & Groceries',
+  'Food & Dining',
   'Utilities',
   'Transportation',
   'Entertainment',
@@ -38,11 +45,6 @@ const INITIAL_EXPENSE_CATEGORIES = [
   'Personal Care',
   'Debt/Loans',
   'Other'
-];
-
-const CATEGORY_COLORS = [
-  '#10B981', '#F59E0B', '#3B82F6', '#EC4899',
-  '#8B5CF6', '#06B6D4', '#F97316', '#6366F1', '#64748B'
 ];
 
 const FILTER_TABS = ['All', 'Wallet', 'Savings', 'MP2 Savings', 'Credit', 'Loans', 'Closed'];
@@ -59,8 +61,19 @@ const DEFAULT_ACCOUNTS = [
 ];
 
 export default function App() {
-  const [mainTab, setMainTab] = useState('expenses');
+  const [mainTab, setMainTab] = useState('expenses'); // 'expenses' | 'networth'
+  const [expenseSubView, setExpenseSubView] = useState('list'); // 'list' | 'calendar'
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('All');
+
+  // Calendar State
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  });
+
+  // Modal to Log Expense (Triggered by bottom-right Floating Action Button)
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
 
   const [accounts, setAccounts] = useState(() => {
     try {
@@ -84,46 +97,37 @@ export default function App() {
     return localStorage.getItem('salary_tracker_hide_total') === 'true';
   });
 
-  // Selected account for card interaction modal
+  // Account Card Action Modal (Deposit / Withdraw / Close)
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [transferAmount, setTransferAmount] = useState('');
   const [transferType, setTransferType] = useState('deposit');
-
-  // Close Account sub-flow states
   const [isClosingFlow, setIsClosingFlow] = useState(false);
   const [closeAction, setCloseAction] = useState('transfer');
   const [transferTargetId, setTransferTargetId] = useState('');
 
-  // Settings dropdown & notifications
+  // Settings & Reports State
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
-  const settingsMenuRef = useRef(null);
-
-  // Financial Report Modal State
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportRange, setReportRange] = useState('ALL');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  // Split Calculator Modal State
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [splitBillAmount, setSplitBillAmount] = useState('');
-  const [splitPeopleCount, setSplitPeopleCount] = useState('2');
-  const [splitTipPercent, setSplitTipPercent] = useState('0');
+  // Add Bank Modal State
+  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [newBankName, setNewBankName] = useState('');
+  const [newBankTag, setNewBankTag] = useState('');
+  const [newBankCategory, setNewBankCategory] = useState('Savings');
+  const [newBankInitialBalance, setNewBankInitialBalance] = useState('');
 
-  // Expense form state
+  // Log Expense Form State
   const [desc, setDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [category, setCategory] = useState(INITIAL_EXPENSE_CATEGORIES[0]);
   const [customCategory, setCustomCategory] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(() => accounts.find(a => !a.isClosed)?.id || '');
 
-  // Add Bank Modal
-  const [showAddBankModal, setShowAddBankModal] = useState(false);
-  const [newBankName, setNewBankName] = useState('');
-  const [newBankTag, setNewBankTag] = useState('');
-  const [newBankCategory, setNewBankCategory] = useState('Savings');
-  const [newBankInitialBalance, setNewBankInitialBalance] = useState('');
+  const settingsMenuRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('salary_tracker_accounts_v2', JSON.stringify(accounts));
@@ -151,15 +155,6 @@ export default function App() {
   const activeAccounts = accounts.filter((a) => !a.isClosed);
   const totalNetWorth = activeAccounts.reduce((sum, acc) => sum + (parseFloat(acc.balance) || 0), 0);
 
-  const filteredAccounts = accounts.filter((acc) => {
-    if (activeCategoryFilter === 'Closed') {
-      return !!acc.isClosed;
-    }
-    if (acc.isClosed) return false;
-    if (activeCategoryFilter === 'All') return true;
-    return (acc.category || '').toLowerCase() === activeCategoryFilter.toLowerCase();
-  });
-
   const formatCurrency = (val, isMasked = false) => {
     if (isMasked) return '₱••••••••';
     return (
@@ -171,6 +166,7 @@ export default function App() {
     );
   };
 
+  // Helper: Month check
   const isCurrentMonth = (dateString) => {
     if (!dateString) return false;
     const txDate = new Date(dateString);
@@ -178,6 +174,7 @@ export default function App() {
     return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
   };
 
+  // Helper: Day check
   const isToday = (dateString) => {
     if (!dateString) return false;
     const txDate = new Date(dateString);
@@ -193,25 +190,88 @@ export default function App() {
   const currentMonthExpensesList = expenseTransactions.filter((tx) => isCurrentMonth(tx?.date));
   const totalMonthlyExpenses = currentMonthExpensesList.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
   const todayExpenses = expenseTransactions.filter((tx) => isToday(tx?.date)).reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
-  const currentMonthName = new Date().toLocaleString('default', { month: 'long' });
 
-  const categoryTotals = currentMonthExpensesList.reduce((acc, tx) => {
-    const cat = tx?.category || 'Other';
-    acc[cat] = (acc[cat] || 0) + (parseFloat(tx.amount) || 0);
-    return acc;
-  }, {});
+  // Category Icon helper
+  const getCategoryIcon = (cat = '') => {
+    const name = cat.toLowerCase();
+    if (name.includes('grocery') || name.includes('essential')) return <ShoppingCart size={17} className="text-slate-600" />;
+    if (name.includes('fuel') || name.includes('gas')) return <Fuel size={17} className="text-slate-600" />;
+    if (name.includes('food') || name.includes('dining')) return <Utensils size={17} className="text-slate-600" />;
+    if (name.includes('housing') || name.includes('rent')) return <Home size={17} className="text-slate-600" />;
+    if (name.includes('utilit')) return <Zap size={17} className="text-slate-600" />;
+    if (name.includes('entertain')) return <Film size={17} className="text-slate-600" />;
+    if (name.includes('health')) return <HeartPulse size={17} className="text-slate-600" />;
+    if (name.includes('personal')) return <Sparkles size={17} className="text-slate-600" />;
+    if (name.includes('debt') || name.includes('loan')) return <CreditCard size={17} className="text-slate-600" />;
+    return <Layers size={17} className="text-slate-600" />;
+  };
 
-  const categoryList = Object.keys(categoryTotals).map((name, index) => {
-    const amount = categoryTotals[name];
-    const percentage = totalMonthlyExpenses > 0 ? (amount / totalMonthlyExpenses) * 100 : 0;
-    return {
-      name,
-      amount,
-      percentage,
-      color: CATEGORY_COLORS[index % CATEGORY_COLORS.length]
+  // Log Expense Submission
+  const handleAddExpense = (e) => {
+    e.preventDefault();
+    const amt = parseFloat(expenseAmount);
+    const sourceAccount = accounts.find((a) => a.id === expenseAccountId);
+
+    if (!desc.trim()) {
+      showToast('Please enter an expense description', 'error');
+      return;
+    }
+    if (isNaN(amt) || amt <= 0) {
+      showToast('Please enter a valid expense amount', 'error');
+      return;
+    }
+    if (sourceAccount && amt > sourceAccount.balance) {
+      showToast(`Insufficient funds in ${sourceAccount.name}`, 'error');
+      return;
+    }
+
+    const finalCategory = category === 'Other' ? (customCategory.trim() || 'Other') : category;
+
+    if (sourceAccount) {
+      setAccounts(accounts.map((a) => (a.id === sourceAccount.id ? { ...a, balance: a.balance - amt } : a)));
+    }
+
+    const newTx = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      type: 'EXPENSE',
+      description: desc.trim(),
+      amount: amt,
+      category: finalCategory,
+      fromId: expenseAccountId,
+      fromName: sourceAccount?.name || 'Wallet'
     };
-  });
 
+    const nextTodayExpenses = todayExpenses + amt;
+    setTransactions([newTx, ...transactions]);
+    setDesc('');
+    setExpenseAmount('');
+    setCustomCategory('');
+    setShowExpenseModal(false);
+
+    if (nextTodayExpenses >= 1000 && todayExpenses < 1000) {
+      showToast(`Daily Warning: Today's expenses reached ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
+    } else {
+      showToast(`Logged: ₱${amt.toLocaleString()} (${finalCategory})`);
+    }
+  };
+
+  // Full Reset Data (Reset all accounts, net worth, and ledger to 0)
+  const handleFullResetData = () => {
+    setShowSettingsMenu(false);
+    if (window.confirm('Are you sure you want to completely RESET ALL DATA? All account balances, transactions, and net worth will be set to ₱0.00.')) {
+      const resetAccounts = DEFAULT_ACCOUNTS.map(a => ({ ...a, balance: 0, isClosed: false }));
+      setAccounts(resetAccounts);
+      setTransactions([]);
+      localStorage.removeItem('salary_tracker_accounts_v2');
+      localStorage.removeItem('salary_tracker_ledger');
+      localStorage.removeItem('salary_tracker_accounts');
+      localStorage.removeItem('salary_tracker_hidden_accounts');
+      showToast('All accounts and net worth have been reset to ₱0.00');
+    }
+  };
+
+  // Account Balance Update (Deposit / Withdraw)
   const handleAccountBalanceUpdate = (e) => {
     e.preventDefault();
     const amt = parseFloat(transferAmount);
@@ -248,6 +308,7 @@ export default function App() {
     showToast(`Updated ${selectedAccount.name} balance`);
   };
 
+  // Close Account Handler
   const handleCloseAccount = () => {
     if (!selectedAccount) return;
     const remainingBalance = parseFloat(selectedAccount.balance) || 0;
@@ -328,71 +389,6 @@ export default function App() {
     setSelectedAccount(null);
   };
 
-  // FULL RESET DATA: Resets all account balances, ledger records, and Net Worth to 0
-  const handleFullResetData = () => {
-    setShowSettingsMenu(false);
-    if (window.confirm('Are you sure you want to completely RESET ALL DATA? All account balances, transactions, and net worth will be set to ₱0.00.')) {
-      const resetAccounts = DEFAULT_ACCOUNTS.map(a => ({ ...a, balance: 0, isClosed: false }));
-      setAccounts(resetAccounts);
-      setTransactions([]);
-      localStorage.removeItem('salary_tracker_accounts_v2');
-      localStorage.removeItem('salary_tracker_ledger');
-      localStorage.removeItem('salary_tracker_accounts');
-      localStorage.removeItem('salary_tracker_hidden_accounts');
-      showToast('All accounts and net worth have been reset to ₱0.00');
-    }
-  };
-
-  const handleAddExpense = (e) => {
-    e.preventDefault();
-    const amt = parseFloat(expenseAmount);
-    const sourceAccount = accounts.find((a) => a.id === expenseAccountId);
-
-    if (!desc.trim()) {
-      showToast('Please enter an expense description', 'error');
-      return;
-    }
-    if (isNaN(amt) || amt <= 0) {
-      showToast('Please enter a valid expense amount', 'error');
-      return;
-    }
-    if (sourceAccount && amt > sourceAccount.balance) {
-      showToast(`Insufficient funds in ${sourceAccount.name}`, 'error');
-      return;
-    }
-
-    const finalCategory = category === 'Other' ? (customCategory.trim() || 'Other') : category;
-
-    if (sourceAccount) {
-      setAccounts(accounts.map((a) => (a.id === sourceAccount.id ? { ...a, balance: a.balance - amt } : a)));
-    }
-
-    const newTx = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      type: 'EXPENSE',
-      description: desc.trim(),
-      amount: amt,
-      category: finalCategory,
-      fromId: expenseAccountId,
-      fromName: sourceAccount?.name || 'Wallet'
-    };
-
-    const nextTodayExpenses = todayExpenses + amt;
-    setTransactions([newTx, ...transactions]);
-    setDesc('');
-    setExpenseAmount('');
-    setCustomCategory('');
-
-    if (nextTodayExpenses >= 1000 && todayExpenses < 1000) {
-      showToast(`Daily Warning: Today's expenses reached ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
-    } else if (nextTodayExpenses >= 800 && nextTodayExpenses < 1000) {
-      showToast(`Daily Notice: You've spent ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} today — almost ₱1,000!`, 'warning');
-    } else {
-      showToast(`Logged: ₱${amt.toLocaleString()} (${finalCategory})`);
-    }
-  };
-
   const handleAddAccountSubmit = (e) => {
     e.preventDefault();
     if (!newBankName.trim()) {
@@ -418,82 +414,44 @@ export default function App() {
     showToast(`Added ${newAcc.bankName} to ${newAcc.category}`);
   };
 
-  const getReportTransactions = () => {
-    const now = new Date();
-    return (transactions || []).filter((tx) => {
-      if (!tx?.date) return false;
-      const txDate = new Date(tx.date);
+  // Calendar Helpers
+  const year = calendarDate.getFullYear();
+  const month = calendarDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 is Sunday
 
-      if (reportRange === 'TODAY') {
-        return (
-          txDate.getDate() === now.getDate() &&
-          txDate.getMonth() === now.getMonth() &&
-          txDate.getFullYear() === now.getFullYear()
-        );
-      }
-      if (reportRange === 'WEEK') {
-        const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
-        return diffDays >= 0 && diffDays <= 7;
-      }
-      if (reportRange === 'MONTH') {
-        return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
-      }
-      if (reportRange === 'CUSTOM') {
-        if (!customStartDate && !customEndDate) return true;
-        const start = customStartDate ? new Date(customStartDate + 'T00:00:00') : new Date('1970-01-01');
-        const end = customEndDate ? new Date(customEndDate + 'T23:59:59') : new Date('2099-12-31');
-        return txDate >= start && txDate <= end;
-      }
-      return true;
-    });
+  const prevMonth = () => {
+    setCalendarDate(new Date(year, month - 1, 1));
   };
 
-  const reportList = getReportTransactions();
-  const reportInflow = reportList.filter((tx) => tx?.type === 'INCOME').reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
-  const reportOutflow = reportList.filter((tx) => tx?.type === 'EXPENSE').reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
-
-  const handleDownloadCSV = () => {
-    const headers = ['Date', 'Type', 'Description', 'Category', 'Account', 'Amount'];
-    const rows = reportList.map((tx) => [
-      new Date(tx.date).toLocaleDateString(),
-      tx.type || '',
-      `"${(tx.description || '').replace(/"/g, '""')}"`,
-      `"${tx.category || ''}"`,
-      `"${tx.fromName || tx.toName || ''}"`,
-      tx.amount || 0
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `financial_report_${reportRange.toLowerCase()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+  const nextMonth = () => {
+    setCalendarDate(new Date(year, month + 1, 1));
   };
 
-  // Split Calculations
-  const billVal = parseFloat(splitBillAmount) || 0;
-  const numPeople = Math.max(1, parseInt(splitPeopleCount) || 1);
-  const tipPct = parseFloat(splitTipPercent) || 0;
-  const tipAmount = billVal * (tipPct / 100);
-  const totalWithTip = billVal + tipAmount;
-  const perPersonShare = totalWithTip / numPeople;
+  const monthName = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  const handleApplySplitToExpense = () => {
-    if (perPersonShare <= 0) return;
-    setDesc(`Split Bill (${numPeople} people)`);
-    setExpenseAmount(perPersonShare.toFixed(2));
-    setCategory('Food & Groceries');
-    setShowSplitModal(false);
-    setMainTab('expenses');
-    showToast(`Filled ₱${perPersonShare.toFixed(2)} into Log Expense form`);
-  };
+  // Get expenses for the currently highlighted calendar date
+  const selectedDateExpenses = expenseTransactions.filter((tx) => {
+    if (!tx?.date) return false;
+    const d = new Date(tx.date);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return dateStr === selectedCalendarDate;
+  });
+
+  const selectedDateTotal = selectedDateExpenses.reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+
+  // Net worth filtered accounts
+  const filteredAccounts = accounts.filter((acc) => {
+    if (activeCategoryFilter === 'Closed') return !!acc.isClosed;
+    if (acc.isClosed) return false;
+    if (activeCategoryFilter === 'All') return true;
+    return (acc.category || '').toLowerCase() === activeCategoryFilter.toLowerCase();
+  });
 
   const transferTargets = accounts.filter((a) => !a.isClosed && a.id !== selectedAccount?.id);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex justify-center text-slate-800 font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-900 flex justify-center text-slate-800 font-sans selection:bg-indigo-500 selection:text-white relative">
       {/* Toast Alert */}
       {notification.show && (
         <div
@@ -511,7 +469,7 @@ export default function App() {
       )}
 
       {/* Mobile App Container */}
-      <div className="w-full max-w-md min-h-screen bg-[#f1f3f6] shadow-2xl flex flex-col relative pb-20">
+      <div className="w-full max-w-md min-h-screen bg-[#f1f3f6] shadow-2xl flex flex-col relative pb-24">
         
         {/* Top Sticky Header */}
         <header className="sticky top-0 z-30 bg-[#f1f3f6]/95 backdrop-blur-md px-5 pt-4 pb-3 border-b border-slate-200/60">
@@ -543,16 +501,8 @@ export default function App() {
               </button>
             </div>
 
-            {/* Quick Action Tools: Split & Settings */}
-            <div className="flex items-center space-x-1.5" ref={settingsMenuRef}>
-              <button
-                onClick={() => setShowSplitModal(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 rounded-xl text-xs font-semibold hover:bg-emerald-500/20 active:scale-95 transition-all"
-              >
-                <Calculator size={13} />
-                Split
-              </button>
-
+            {/* Settings Gear Dropdown */}
+            <div className="relative" ref={settingsMenuRef}>
               <button
                 onClick={() => setShowSettingsMenu(!showSettingsMenu)}
                 className="p-2 bg-white text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-95 transition-all shadow-xs"
@@ -563,7 +513,7 @@ export default function App() {
 
               {/* Settings Dropdown */}
               {showSettingsMenu && (
-                <div className="absolute right-5 top-14 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-11 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
                   <button
                     onClick={() => {
                       setShowSettingsMenu(false);
@@ -601,192 +551,182 @@ export default function App() {
         {/* Content Body */}
         <main className="flex-1 px-4 pt-3 space-y-4">
 
-          {/* EXPENSES & LEDGER VIEW */}
+          {/* ===================== EXPENSES VIEW ===================== */}
           {mainTab === 'expenses' && (
             <div className="space-y-4">
-              {/* Daily Warning Alert */}
-              {todayExpenses >= 1000 ? (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2.5 text-red-700 text-xs font-semibold">
-                  <AlertCircle size={18} className="shrink-0 text-red-600" />
-                  <span>
-                    Daily Limit Warning: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today (₱1,000 threshold crossed).
-                  </span>
+              
+              {/* Total Spent This Month Card with List / Calendar Toggle */}
+              <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-slate-500 font-medium block mb-0.5">Total Spent This Month</span>
+                  <div className="text-2xl font-black text-slate-900 tracking-tight">
+                    {formatCurrency(totalMonthlyExpenses)}
+                  </div>
                 </div>
-              ) : todayExpenses >= 800 ? (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-amber-800 text-xs font-semibold">
-                  <AlertTriangle size={18} className="shrink-0 text-amber-600" />
-                  <span>
-                    Daily Notice: You have spent <strong>{formatCurrency(todayExpenses)}</strong> today. Almost at ₱1,000 limit.
-                  </span>
-                </div>
-              ) : null}
 
-              {/* Log Expense Form (Positioned Upper) */}
-              <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <TrendingDown className="text-red-500" size={17} />
-                  Log Expense
-                </h3>
-
-                <form onSubmit={handleAddExpense} className="space-y-3">
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Description</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Groceries, Coffee"
-                      value={desc}
-                      onChange={(e) => setDesc(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 block mb-1">Amount (₱)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={expenseAmount}
-                        onChange={(e) => setExpenseAmount(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 block mb-1">Category</label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        {INITIAL_EXPENSE_CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {category === 'Other' && (
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 block mb-1">Custom Category Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Subscriptions"
-                        value={customCategory}
-                        onChange={(e) => setCustomCategory(e.target.value)}
-                        className="w-full px-3 py-2 border border-amber-200 bg-amber-50/40 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Deduct From</label>
-                    <select
-                      value={expenseAccountId}
-                      onChange={(e) => setExpenseAccountId(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      {activeAccounts.map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name} ({acc.bankName}) - {formatCurrency(acc.balance)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
+                {/* List vs Calendar Toggle Switch */}
+                <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
                   <button
-                    type="submit"
-                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                    onClick={() => setExpenseSubView('list')}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      expenseSubView === 'list'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
                   >
-                    <Plus size={15} /> Add Expense
+                    <span>☰</span> List
                   </button>
-                </form>
+                  <button
+                    onClick={() => setExpenseSubView('calendar')}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      expenseSubView === 'calendar'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <CalendarIcon size={12} /> Calendar
+                  </button>
+                </div>
               </div>
 
-              {/* Monthly Expense Distribution Card */}
-              <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <PieChartIcon size={18} className="text-indigo-600" />
-                    <span className="text-xs font-bold text-slate-700">Expense Distribution</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Total ({currentMonthName})</span>
-                    <span className="text-base font-extrabold text-red-600">{formatCurrency(totalMonthlyExpenses)}</span>
-                  </div>
-                </div>
-
-                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex my-3 border border-slate-200/50">
-                  {totalMonthlyExpenses === 0 ? (
-                    <div className="w-full h-full bg-slate-200" />
+              {/* VIEW 1: LIST OF EXPENSES */}
+              {expenseSubView === 'list' && (
+                <div className="space-y-2.5">
+                  {currentMonthExpensesList.length === 0 ? (
+                    <div className="p-8 text-center bg-white rounded-3xl border border-slate-100 text-slate-400 text-xs italic">
+                      No expenses logged for this month yet. Tap the button below to add one.
+                    </div>
                   ) : (
-                    categoryList.map((cat, idx) => (
+                    currentMonthExpensesList.map((tx) => (
                       <div
-                        key={idx}
-                        style={{ width: `${cat.percentage}%`, backgroundColor: cat.color }}
-                        className="h-full transition-all duration-300"
-                        title={`${cat.name}: ${cat.percentage.toFixed(1)}%`}
-                      />
-                    ))
-                  )}
-                </div>
-
-                <div className="space-y-1.5 mt-3 max-h-40 overflow-y-auto no-scrollbar">
-                  {categoryList.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-2">No expenses logged for {currentMonthName}.</p>
-                  ) : (
-                    categoryList.map((cat, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100/80">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                          <span className="text-xs font-semibold text-slate-700">{cat.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-800">{formatCurrency(cat.amount)}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-slate-500 border border-slate-200 min-w-[38px] text-center">
-                            {cat.percentage.toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Transaction Ledger Table */}
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={16} className="text-slate-400" />
-                    <h4 className="text-xs font-bold text-slate-800">Recent Transactions</h4>
-                  </div>
-                  <span className="text-[10px] text-slate-400">{transactions.length} entries</span>
-                </div>
-
-                <div className="space-y-2 max-h-56 overflow-y-auto no-scrollbar">
-                  {transactions.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-4">No records found.</p>
-                  ) : (
-                    transactions.map((tx) => (
-                      <div key={tx.id} className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
-                        <div>
-                          <div className="font-bold text-slate-800 line-clamp-1">{tx.description}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {new Date(tx.date).toLocaleDateString()} • {tx.category || tx.fromName || 'General'}
+                        key={tx.id}
+                        className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs flex items-center justify-between transition-all hover:shadow-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                            {getCategoryIcon(tx.category || tx.description)}
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-800 leading-snug">
+                              {tx.description || tx.category || 'Expense'}
+                            </h4>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} •{' '}
+                              <span className="text-blue-600 font-semibold">{tx.fromName || 'Wallet'}</span>
+                            </span>
                           </div>
                         </div>
-                        <div className={`font-extrabold ${tx.type === 'EXPENSE' ? 'text-red-600' : 'text-emerald-600'}`}>
-                          {tx.type === 'EXPENSE' ? '-' : '+'}{formatCurrency(tx.amount)}
+
+                        <div className="text-xs font-black text-red-500 tracking-tight">
+                          -{formatCurrency(tx.amount)}
                         </div>
                       </div>
                     ))
                   )}
                 </div>
-              </div>
+              )}
+
+              {/* VIEW 2: CALENDAR VIEW */}
+              {expenseSubView === 'calendar' && (
+                <div className="space-y-3">
+                  {/* Calendar Widget Card */}
+                  <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                    {/* Month Header with Prev/Next Controls */}
+                    <div className="flex items-center justify-between mb-4">
+                      <button
+                        onClick={prevMonth}
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <h3 className="text-xs font-bold text-slate-800 tracking-tight">{monthName}</h3>
+                      <button
+                        onClick={nextMonth}
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+
+                    {/* Day of Week Headers */}
+                    <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
+                      <span>S</span>
+                      <span>M</span>
+                      <span>T</span>
+                      <span>W</span>
+                      <span>T</span>
+                      <span>F</span>
+                      <span>S</span>
+                    </div>
+
+                    {/* Calendar Day Grid */}
+                    <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                      {Array.from({ length: firstDayIndex }).map((_, i) => (
+                        <div key={`empty-${i}`} className="h-8" />
+                      ))}
+
+                      {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const dayNum = i + 1;
+                        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                        const isSelected = selectedCalendarDate === dateString;
+
+                        // Check if this date has any recorded expenses
+                        const hasExpense = expenseTransactions.some((tx) => {
+                          if (!tx?.date) return false;
+                          const d = new Date(tx.date);
+                          return (
+                            d.getFullYear() === year &&
+                            d.getMonth() === month &&
+                            d.getDate() === dayNum
+                          );
+                        });
+
+                        return (
+                          <button
+                            key={dayNum}
+                            onClick={() => setSelectedCalendarDate(dateString)}
+                            className={`h-8 rounded-full flex flex-col items-center justify-center font-bold text-xs relative transition-all ${
+                              isSelected
+                                ? 'bg-red-500 text-white shadow-xs'
+                                : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span>{dayNum}</span>
+                            {!isSelected && hasExpense && (
+                              <span className="w-1 h-1 rounded-full bg-red-500 absolute bottom-1" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Day Expense Summary Breakdown Card */}
+                  <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <span className="text-xs font-bold text-slate-700">Date: {selectedCalendarDate}</span>
+                      <span className="text-xs font-black text-red-500">{formatCurrency(selectedDateTotal)}</span>
+                    </div>
+
+                    {selectedDateExpenses.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic text-center py-2">No expenses recorded for this date.</p>
+                    ) : (
+                      selectedDateExpenses.map((tx) => (
+                        <div key={tx.id} className="flex items-center justify-between text-xs py-1">
+                          <span className="font-semibold text-slate-800 truncate max-w-[200px]">
+                            {tx.description || tx.category}
+                          </span>
+                          <span className="font-bold text-red-500">-{formatCurrency(tx.amount)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* NET WORTH VIEW */}
+          {/* ===================== NET WORTH VIEW ===================== */}
           {mainTab === 'networth' && (
             <>
               {/* Total Net Worth Card */}
@@ -871,102 +811,112 @@ export default function App() {
             </>
           )}
         </main>
+
+        {/* Floating Action Button (FAB) to Log Expense */}
+        <button
+          onClick={() => setShowExpenseModal(true)}
+          className="fixed bottom-6 right-6 md:right-[calc(50%-180px)] z-40 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white flex items-center justify-center shadow-lg transition-all"
+          title="Log Expense"
+        >
+          <Receipt size={22} />
+        </button>
       </div>
 
-      {/* Split Bill Calculator Modal */}
-      {showSplitModal && (
+      {/* Log Expense Modal (Triggered by FAB) */}
+      {showExpenseModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl">
-                  <Calculator size={18} />
+                <div className="p-1.5 bg-red-100 text-red-600 rounded-xl">
+                  <TrendingDown size={18} />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800 leading-tight">Split Expense</h4>
-                  <span className="text-[10px] text-slate-400">Divide a bill among people</span>
-                </div>
+                <h4 className="text-sm font-bold text-slate-800 leading-tight">Log Expense</h4>
               </div>
-              <button onClick={() => setShowSplitModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowExpenseModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-3">
+            <form onSubmit={handleAddExpense} className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Total Bill Amount (₱)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Grocery & Essentials"
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Amount (₱)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
-                  value={splitBillAmount}
-                  onChange={(e) => setSplitBillAmount(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                  value={expenseAmount}
+                  onChange={(e) => setExpenseAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                  required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">People</label>
-                  <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5">
-                    <Users size={14} className="text-slate-400 mr-1.5 shrink-0" />
-                    <input
-                      type="number"
-                      min="1"
-                      value={splitPeopleCount}
-                      onChange={(e) => setSplitPeopleCount(e.target.value)}
-                      className="w-full bg-transparent text-xs font-bold focus:outline-none"
-                    />
-                  </div>
-                </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {INITIAL_EXPENSE_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
 
+              {category === 'Other' && (
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Tip / Tax (%)</label>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Custom Category Name</label>
                   <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={splitTipPercent}
-                    onChange={(e) => setSplitTipPercent(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                    type="text"
+                    placeholder="e.g. Subscriptions"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-amber-200 bg-amber-50/40 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Pay From</label>
+                <select
+                  value={expenseAccountId}
+                  onChange={(e) => setExpenseAccountId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {activeAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} ({acc.bankName}) - {formatCurrency(acc.balance)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Per Person Calculated Share Banner */}
-              <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-center mt-2">
-                <span className="text-[10px] text-emerald-700 uppercase font-bold tracking-wider block">Each Person Pays</span>
-                <span className="text-xl font-extrabold text-emerald-800">{formatCurrency(perPersonShare)}</span>
-                {tipAmount > 0 && (
-                  <span className="text-[9px] text-emerald-600 block mt-0.5">
-                    Includes {formatCurrency(tipAmount)} tip ({formatCurrency(totalWithTip)} total)
-                  </span>
-                )}
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowSplitModal(false)}
-                  className="w-1/2 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={handleApplySplitToExpense}
-                  disabled={perPersonShare <= 0}
-                  className="w-1/2 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all shadow-sm active:scale-95"
-                >
-                  Log My Share
-                </button>
-              </div>
-            </div>
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Plus size={15} /> Add Expense
+              </button>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Account Balance Action Modal */}
+      {/* Account Balance Action Modal (Tap on Card to Deposit/Withdraw/Close) */}
       {selectedAccount && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
@@ -1146,7 +1096,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Add New Bank / Wallet Modal */}
+      {/* Add Bank / Wallet Modal */}
       {showAddBankModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200">
@@ -1273,44 +1223,6 @@ export default function App() {
                   />
                 </div>
               )}
-
-              <div className="grid grid-cols-2 gap-2 my-2">
-                <div className="p-2.5 bg-emerald-50 rounded-2xl border border-emerald-100">
-                  <span className="text-[9px] font-bold uppercase text-emerald-700 block">Total Inflow</span>
-                  <span className="text-sm font-extrabold text-emerald-800">{formatCurrency(reportInflow)}</span>
-                </div>
-                <div className="p-2.5 bg-red-50 rounded-2xl border border-red-100">
-                  <span className="text-[9px] font-bold uppercase text-red-700 block">Total Outflow</span>
-                  <span className="text-sm font-extrabold text-red-800">{formatCurrency(reportOutflow)}</span>
-                </div>
-              </div>
-
-              <div className="border border-slate-100 rounded-2xl overflow-hidden mt-3 max-h-40 overflow-y-auto no-scrollbar">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-50 text-slate-400 border-b border-slate-100">
-                    <tr>
-                      <th className="p-2">Date</th>
-                      <th className="p-2">Description</th>
-                      <th className="p-2 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {reportList.length === 0 ? (
-                      <tr>
-                        <td colSpan="3" className="p-3 text-center text-slate-400 italic">No entries for this period.</td>
-                      </tr>
-                    ) : (
-                      reportList.map((tx) => (
-                        <tr key={tx.id}>
-                          <td className="p-2 text-slate-400">{new Date(tx.date).toLocaleDateString()}</td>
-                          <td className="p-2 font-medium text-slate-700 truncate max-w-[110px]">{tx.description}</td>
-                          <td className="p-2 text-right font-bold text-slate-800">{formatCurrency(tx.amount)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
             </div>
 
             <div className="flex gap-2 pt-3 border-t border-slate-100 mt-3">
@@ -1321,7 +1233,25 @@ export default function App() {
                 <Printer size={13} /> Print
               </button>
               <button
-                onClick={handleDownloadCSV}
+                onClick={() => {
+                  const headers = ['Date', 'Type', 'Description', 'Category', 'Account', 'Amount'];
+                  const rows = transactions.map((tx) => [
+                    new Date(tx.date).toLocaleDateString(),
+                    tx.type || '',
+                    `"${(tx.description || '').replace(/"/g, '""')}"`,
+                    `"${tx.category || ''}"`,
+                    `"${tx.fromName || tx.toName || ''}"`,
+                    tx.amount || 0
+                  ]);
+                  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+                  const encodedUri = encodeURI(csvContent);
+                  const link = document.createElement('a');
+                  link.setAttribute('href', encodedUri);
+                  link.setAttribute('download', `financial_report.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
                 className="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-sm"
               >
                 <Download size={13} /> CSV
