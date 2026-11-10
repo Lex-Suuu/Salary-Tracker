@@ -24,8 +24,8 @@ import {
   SlidersHorizontal,
   ChevronRight,
   Archive,
-  ArrowRightLeft,
-  RotateCcw
+  RotateCcw,
+  Users
 } from 'lucide-react';
 
 const INITIAL_EXPENSE_CATEGORIES = [
@@ -47,26 +47,27 @@ const CATEGORY_COLORS = [
 
 const FILTER_TABS = ['All', 'Wallet', 'Savings', 'MP2 Savings', 'Credit', 'Loans', 'Closed'];
 
+const DEFAULT_ACCOUNTS = [
+  { id: 'acc_gotyme', name: 'Emergency Fund', bankName: 'GO', balance: 0, category: 'Wallet', iconColor: 'bg-emerald-500 text-white', isClosed: false },
+  { id: 'acc_bdo', name: 'Emergency Fund', bankName: 'BDO', balance: 0, category: 'Savings', iconColor: 'bg-blue-900 text-amber-400', isClosed: false },
+  { id: 'acc_bpi', name: 'Savings', bankName: 'BPI', balance: 0, category: 'Savings', iconColor: 'bg-red-700 text-white', isClosed: false },
+  { id: 'acc_mp2', name: 'Retirement Fund', bankName: 'MP2', balance: 0, category: 'MP2 Savings', iconColor: 'bg-indigo-900 text-white', isClosed: false },
+  { id: 'acc_maya_sa', name: 'SA/TD/Personal Goal', bankName: 'maya', balance: 0, category: 'Savings', iconColor: 'bg-black text-emerald-400', isClosed: false },
+  { id: 'acc_gcash', name: 'Gfund/Invest', bankName: 'G)', balance: 0, category: 'Wallet', iconColor: 'bg-blue-600 text-white', isClosed: false },
+  { id: 'acc_crypto', name: 'Fund/Stocks/Crypto', bankName: 'maya', balance: 0, category: 'Wallet', iconColor: 'bg-black text-emerald-400', isClosed: false },
+  { id: 'acc_gold', name: 'Gold', bankName: '💍', balance: 0, category: 'Asset', iconColor: 'bg-emerald-100 text-emerald-700', isClosed: false }
+];
+
 export default function App() {
-  // Automatically opens on Expenses every time the app loads
   const [mainTab, setMainTab] = useState('expenses');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('All');
 
   const [accounts, setAccounts] = useState(() => {
     try {
       const saved = localStorage.getItem('salary_tracker_accounts_v2');
-      return saved ? JSON.parse(saved) : [
-        { id: 'acc_gotyme', name: 'Emergency Fund', bankName: 'GO', balance: 201218.62, category: 'Wallet', iconColor: 'bg-emerald-500 text-white', isClosed: false },
-        { id: 'acc_bdo', name: 'Emergency Fund', bankName: 'BDO', balance: 200391.93, category: 'Savings', iconColor: 'bg-blue-900 text-amber-400', isClosed: false },
-        { id: 'acc_bpi', name: 'Savings', bankName: 'BPI', balance: 105797.76, category: 'Savings', iconColor: 'bg-red-700 text-white', isClosed: false },
-        { id: 'acc_mp2', name: 'Retirement Fund', bankName: 'MP2', balance: 240414.30, category: 'MP2 Savings', iconColor: 'bg-indigo-900 text-white', isClosed: false },
-        { id: 'acc_maya_sa', name: 'SA/TD/Personal Goal', bankName: 'maya', balance: 406651.62, category: 'Savings', iconColor: 'bg-black text-emerald-400', isClosed: false },
-        { id: 'acc_gcash', name: 'Gfund/Invest', bankName: 'G)', balance: 350338.43, category: 'Wallet', iconColor: 'bg-blue-600 text-white', isClosed: false },
-        { id: 'acc_crypto', name: 'Fund/Stocks/Crypto', bankName: 'maya', balance: 496493.00, category: 'Wallet', iconColor: 'bg-black text-emerald-400', isClosed: false },
-        { id: 'acc_gold', name: 'Gold', bankName: '💍', balance: 430000.00, category: 'Asset', iconColor: 'bg-emerald-100 text-emerald-700', isClosed: false }
-      ];
+      return saved ? JSON.parse(saved) : DEFAULT_ACCOUNTS;
     } catch {
-      return [];
+      return DEFAULT_ACCOUNTS;
     }
   });
 
@@ -103,6 +104,12 @@ export default function App() {
   const [reportRange, setReportRange] = useState('ALL');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+
+  // Split Calculator Modal State
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitBillAmount, setSplitBillAmount] = useState('');
+  const [splitPeopleCount, setSplitPeopleCount] = useState('2');
+  const [splitTipPercent, setSplitTipPercent] = useState('0');
 
   // Expense form state
   const [desc, setDesc] = useState('');
@@ -321,6 +328,21 @@ export default function App() {
     setSelectedAccount(null);
   };
 
+  // FULL RESET DATA: Resets all account balances, ledger records, and Net Worth to 0
+  const handleFullResetData = () => {
+    setShowSettingsMenu(false);
+    if (window.confirm('Are you sure you want to completely RESET ALL DATA? All account balances, transactions, and net worth will be set to ₱0.00.')) {
+      const resetAccounts = DEFAULT_ACCOUNTS.map(a => ({ ...a, balance: 0, isClosed: false }));
+      setAccounts(resetAccounts);
+      setTransactions([]);
+      localStorage.removeItem('salary_tracker_accounts_v2');
+      localStorage.removeItem('salary_tracker_ledger');
+      localStorage.removeItem('salary_tracker_accounts');
+      localStorage.removeItem('salary_tracker_hidden_accounts');
+      showToast('All accounts and net worth have been reset to ₱0.00');
+    }
+  };
+
   const handleAddExpense = (e) => {
     e.preventDefault();
     const amt = parseFloat(expenseAmount);
@@ -450,6 +472,24 @@ export default function App() {
     link.remove();
   };
 
+  // Split Calculations
+  const billVal = parseFloat(splitBillAmount) || 0;
+  const numPeople = Math.max(1, parseInt(splitPeopleCount) || 1);
+  const tipPct = parseFloat(splitTipPercent) || 0;
+  const tipAmount = billVal * (tipPct / 100);
+  const totalWithTip = billVal + tipAmount;
+  const perPersonShare = totalWithTip / numPeople;
+
+  const handleApplySplitToExpense = () => {
+    if (perPersonShare <= 0) return;
+    setDesc(`Split Bill (${numPeople} people)`);
+    setExpenseAmount(perPersonShare.toFixed(2));
+    setCategory('Food & Groceries');
+    setShowSplitModal(false);
+    setMainTab('expenses');
+    showToast(`Filled ₱${perPersonShare.toFixed(2)} into Log Expense form`);
+  };
+
   const transferTargets = accounts.filter((a) => !a.isClosed && a.id !== selectedAccount?.id);
 
   return (
@@ -506,10 +546,7 @@ export default function App() {
             {/* Quick Action Tools: Split & Settings */}
             <div className="flex items-center space-x-1.5" ref={settingsMenuRef}>
               <button
-                onClick={() => {
-                  setReportRange('MONTH');
-                  setShowReportModal(true);
-                }}
+                onClick={() => setShowSplitModal(true)}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 rounded-xl text-xs font-semibold hover:bg-emerald-500/20 active:scale-95 transition-all"
               >
                 <Calculator size={13} />
@@ -550,13 +587,7 @@ export default function App() {
                   <div className="border-t border-slate-100 my-1"></div>
 
                   <button
-                    onClick={() => {
-                      setShowSettingsMenu(false);
-                      if (window.confirm('Reset all ledger data and restore defaults?')) {
-                        localStorage.clear();
-                        window.location.reload();
-                      }
-                    }}
+                    onClick={handleFullResetData}
                     className="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
                   >
                     <Trash2 size={13} className="text-red-500" /> Reset All Data
@@ -570,7 +601,7 @@ export default function App() {
         {/* Content Body */}
         <main className="flex-1 px-4 pt-3 space-y-4">
 
-          {/* EXPENSES & LEDGER VIEW (Opens automatically first) */}
+          {/* EXPENSES & LEDGER VIEW */}
           {mainTab === 'expenses' && (
             <div className="space-y-4">
               {/* Daily Warning Alert */}
@@ -842,6 +873,99 @@ export default function App() {
         </main>
       </div>
 
+      {/* Split Bill Calculator Modal */}
+      {showSplitModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <Calculator size={18} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800 leading-tight">Split Expense</h4>
+                  <span className="text-[10px] text-slate-400">Divide a bill among people</span>
+                </div>
+              </div>
+              <button onClick={() => setShowSplitModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Total Bill Amount (₱)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={splitBillAmount}
+                  onChange={(e) => setSplitBillAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">People</label>
+                  <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5">
+                    <Users size={14} className="text-slate-400 mr-1.5 shrink-0" />
+                    <input
+                      type="number"
+                      min="1"
+                      value={splitPeopleCount}
+                      onChange={(e) => setSplitPeopleCount(e.target.value)}
+                      className="w-full bg-transparent text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Tip / Tax (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={splitTipPercent}
+                    onChange={(e) => setSplitTipPercent(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Per Person Calculated Share Banner */}
+              <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-center mt-2">
+                <span className="text-[10px] text-emerald-700 uppercase font-bold tracking-wider block">Each Person Pays</span>
+                <span className="text-xl font-extrabold text-emerald-800">{formatCurrency(perPersonShare)}</span>
+                {tipAmount > 0 && (
+                  <span className="text-[9px] text-emerald-600 block mt-0.5">
+                    Includes {formatCurrency(tipAmount)} tip ({formatCurrency(totalWithTip)} total)
+                  </span>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowSplitModal(false)}
+                  className="w-1/2 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplySplitToExpense}
+                  disabled={perPersonShare <= 0}
+                  className="w-1/2 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all shadow-sm active:scale-95"
+                >
+                  Log My Share
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Account Balance Action Modal */}
       {selectedAccount && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1097,7 +1221,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Financial Summary & Split Report Modal */}
+      {/* Financial Summary & Export Modal */}
       {showReportModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col justify-between">
