@@ -61,8 +61,8 @@ const DEFAULT_ACCOUNTS = [
 ];
 
 export default function App() {
-  const [mainTab, setMainTab] = useState('expenses'); // 'expenses' | 'networth'
-  const [expenseSubView, setExpenseSubView] = useState('list'); // 'list' | 'calendar'
+  const [mainTab, setMainTab] = useState('expenses');
+  const [expenseSubView, setExpenseSubView] = useState('list');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('All');
 
   // Calendar State
@@ -72,7 +72,6 @@ export default function App() {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   });
 
-  // Modal to Log Expense (Triggered by bottom-right Floating Action Button)
   const [showExpenseModal, setShowExpenseModal] = useState(false);
 
   const [accounts, setAccounts] = useState(() => {
@@ -120,12 +119,42 @@ export default function App() {
   const [newBankCategory, setNewBankCategory] = useState('Savings');
   const [newBankInitialBalance, setNewBankInitialBalance] = useState('');
 
-  // Log Expense Form State
+  // Helper: Detect whether an account is locked from being spent directly
+  const isSpendingAccount = (acc) => {
+    if (acc.isClosed) return false;
+    const cat = (acc.category || '').toLowerCase();
+    const name = (acc.name || '').toLowerCase();
+
+    // Prevent direct spending from Savings, MP2, Assets, Retirement, or Emergency Funds
+    if (
+      cat.includes('saving') ||
+      cat.includes('asset') ||
+      cat.includes('mp2') ||
+      name.includes('emergency') ||
+      name.includes('retirement') ||
+      name.includes('saving')
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  // Only active spending accounts can be used for payments
+  const payableAccounts = accounts.filter(isSpendingAccount);
+
+  // Expense form state
   const [desc, setDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [category, setCategory] = useState(INITIAL_EXPENSE_CATEGORIES[0]);
   const [customCategory, setCustomCategory] = useState('');
-  const [expenseAccountId, setExpenseAccountId] = useState(() => accounts.find(a => !a.isClosed)?.id || '');
+  const [expenseAccountId, setExpenseAccountId] = useState(() => payableAccounts[0]?.id || '');
+
+  // Keep expenseAccountId synced to a valid payment account
+  useEffect(() => {
+    if (!payableAccounts.some((a) => a.id === expenseAccountId)) {
+      setExpenseAccountId(payableAccounts[0]?.id || '');
+    }
+  }, [payableAccounts, expenseAccountId]);
 
   const settingsMenuRef = useRef(null);
 
@@ -166,7 +195,6 @@ export default function App() {
     );
   };
 
-  // Helper: Month check
   const isCurrentMonth = (dateString) => {
     if (!dateString) return false;
     const txDate = new Date(dateString);
@@ -174,7 +202,6 @@ export default function App() {
     return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
   };
 
-  // Helper: Day check
   const isToday = (dateString) => {
     if (!dateString) return false;
     const txDate = new Date(dateString);
@@ -191,7 +218,6 @@ export default function App() {
   const totalMonthlyExpenses = currentMonthExpensesList.reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
   const todayExpenses = expenseTransactions.filter((tx) => isToday(tx?.date)).reduce((acc, tx) => acc + (parseFloat(tx.amount) || 0), 0);
 
-  // Category Icon helper
   const getCategoryIcon = (cat = '') => {
     const name = cat.toLowerCase();
     if (name.includes('grocery') || name.includes('essential')) return <ShoppingCart size={17} className="text-slate-600" />;
@@ -212,6 +238,14 @@ export default function App() {
     const amt = parseFloat(expenseAmount);
     const sourceAccount = accounts.find((a) => a.id === expenseAccountId);
 
+    if (!sourceAccount) {
+      showToast('Please select a valid daily spending account (Savings/Emergency funds cannot be used)', 'error');
+      return;
+    }
+    if (!isSpendingAccount(sourceAccount)) {
+      showToast('Savings, Emergency Funds, and Retirement accounts cannot be used for payment', 'error');
+      return;
+    }
     if (!desc.trim()) {
       showToast('Please enter an expense description', 'error');
       return;
@@ -220,16 +254,14 @@ export default function App() {
       showToast('Please enter a valid expense amount', 'error');
       return;
     }
-    if (sourceAccount && amt > sourceAccount.balance) {
+    if (amt > sourceAccount.balance) {
       showToast(`Insufficient funds in ${sourceAccount.name}`, 'error');
       return;
     }
 
     const finalCategory = category === 'Other' ? (customCategory.trim() || 'Other') : category;
 
-    if (sourceAccount) {
-      setAccounts(accounts.map((a) => (a.id === sourceAccount.id ? { ...a, balance: a.balance - amt } : a)));
-    }
+    setAccounts(accounts.map((a) => (a.id === sourceAccount.id ? { ...a, balance: a.balance - amt } : a)));
 
     const newTx = {
       id: Date.now().toString(),
@@ -239,7 +271,7 @@ export default function App() {
       amount: amt,
       category: finalCategory,
       fromId: expenseAccountId,
-      fromName: sourceAccount?.name || 'Wallet'
+      fromName: sourceAccount.name
     };
 
     const nextTodayExpenses = todayExpenses + amt;
@@ -256,7 +288,6 @@ export default function App() {
     }
   };
 
-  // Full Reset Data (Reset all accounts, net worth, and ledger to 0)
   const handleFullResetData = () => {
     setShowSettingsMenu(false);
     if (window.confirm('Are you sure you want to completely RESET ALL DATA? All account balances, transactions, and net worth will be set to ₱0.00.')) {
@@ -271,7 +302,6 @@ export default function App() {
     }
   };
 
-  // Account Balance Update (Deposit / Withdraw)
   const handleAccountBalanceUpdate = (e) => {
     e.preventDefault();
     const amt = parseFloat(transferAmount);
@@ -308,7 +338,6 @@ export default function App() {
     showToast(`Updated ${selectedAccount.name} balance`);
   };
 
-  // Close Account Handler
   const handleCloseAccount = () => {
     if (!selectedAccount) return;
     const remainingBalance = parseFloat(selectedAccount.balance) || 0;
@@ -418,7 +447,7 @@ export default function App() {
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 is Sunday
+  const firstDayIndex = new Date(year, month, 1).getDay();
 
   const prevMonth = () => {
     setCalendarDate(new Date(year, month - 1, 1));
@@ -430,7 +459,6 @@ export default function App() {
 
   const monthName = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // Get expenses for the currently highlighted calendar date
   const selectedDateExpenses = expenseTransactions.filter((tx) => {
     if (!tx?.date) return false;
     const d = new Date(tx.date);
@@ -440,7 +468,6 @@ export default function App() {
 
   const selectedDateTotal = selectedDateExpenses.reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
 
-  // Net worth filtered accounts
   const filteredAccounts = accounts.filter((acc) => {
     if (activeCategoryFilter === 'Closed') return !!acc.isClosed;
     if (acc.isClosed) return false;
@@ -501,7 +528,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Settings Gear Dropdown */}
+            {/* Settings Dropdown Toggle */}
             <div className="relative" ref={settingsMenuRef}>
               <button
                 onClick={() => setShowSettingsMenu(!showSettingsMenu)}
@@ -511,7 +538,6 @@ export default function App() {
                 <SlidersHorizontal size={14} />
               </button>
 
-              {/* Settings Dropdown */}
               {showSettingsMenu && (
                 <div className="absolute right-0 top-11 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
                   <button
@@ -589,12 +615,12 @@ export default function App() {
                 </div>
               </div>
 
-              {/* VIEW 1: LIST OF EXPENSES */}
+              {/* LIST VIEW */}
               {expenseSubView === 'list' && (
                 <div className="space-y-2.5">
                   {currentMonthExpensesList.length === 0 ? (
                     <div className="p-8 text-center bg-white rounded-3xl border border-slate-100 text-slate-400 text-xs italic">
-                      No expenses logged for this month yet. Tap the button below to add one.
+                      No expenses logged for this month yet. Tap the purple receipt button below to add one.
                     </div>
                   ) : (
                     currentMonthExpensesList.map((tx) => (
@@ -626,12 +652,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* VIEW 2: CALENDAR VIEW */}
+              {/* CALENDAR VIEW */}
               {expenseSubView === 'calendar' && (
                 <div className="space-y-3">
-                  {/* Calendar Widget Card */}
                   <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-                    {/* Month Header with Prev/Next Controls */}
                     <div className="flex items-center justify-between mb-4">
                       <button
                         onClick={prevMonth}
@@ -648,7 +672,6 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Day of Week Headers */}
                     <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
                       <span>S</span>
                       <span>M</span>
@@ -659,7 +682,6 @@ export default function App() {
                       <span>S</span>
                     </div>
 
-                    {/* Calendar Day Grid */}
                     <div className="grid grid-cols-7 gap-1 text-center text-xs">
                       {Array.from({ length: firstDayIndex }).map((_, i) => (
                         <div key={`empty-${i}`} className="h-8" />
@@ -670,7 +692,6 @@ export default function App() {
                         const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                         const isSelected = selectedCalendarDate === dateString;
 
-                        // Check if this date has any recorded expenses
                         const hasExpense = expenseTransactions.some((tx) => {
                           if (!tx?.date) return false;
                           const d = new Date(tx.date);
@@ -701,7 +722,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Day Expense Summary Breakdown Card */}
                   <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <span className="text-xs font-bold text-slate-700">Date: {selectedCalendarDate}</span>
@@ -822,7 +842,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* Log Expense Modal (Triggered by FAB) */}
+      {/* Log Expense Modal (Restricted: Savings/Emergency/Retirement accounts are excluded from Pay From) */}
       {showExpenseModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
@@ -890,24 +910,35 @@ export default function App() {
                 </div>
               )}
 
+              {/* Pay From: ONLY shows active spending wallets / cards */}
               <div>
                 <label className="text-[10px] font-bold text-slate-500 block mb-1">Pay From</label>
-                <select
-                  value={expenseAccountId}
-                  onChange={(e) => setExpenseAccountId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  {activeAccounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.bankName}) - {formatCurrency(acc.balance)}
-                    </option>
-                  ))}
-                </select>
+                {payableAccounts.length === 0 ? (
+                  <div className="p-2 bg-red-50 border border-red-200 rounded-xl text-[10px] text-red-700">
+                    No active daily spending accounts found. Savings and retirement funds cannot be used.
+                  </div>
+                ) : (
+                  <select
+                    value={expenseAccountId}
+                    onChange={(e) => setExpenseAccountId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {payableAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.bankName}) - {formatCurrency(acc.balance)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <span className="text-[9px] text-slate-400 block mt-1">
+                  * Savings, MP2, Retirement & Emergency funds are protected and excluded from payments.
+                </span>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                disabled={payableAccounts.length === 0}
+                className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <Plus size={15} /> Add Expense
               </button>
@@ -916,7 +947,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Account Balance Action Modal (Tap on Card to Deposit/Withdraw/Close) */}
+      {/* Account Balance Action Modal */}
       {selectedAccount && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
@@ -1096,7 +1127,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Add Bank / Wallet Modal */}
+      {/* Add New Bank / Wallet Modal */}
       {showAddBankModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200">
@@ -1124,7 +1155,7 @@ export default function App() {
                 <label className="text-[10px] font-bold text-slate-500 block mb-1">Account Purpose</label>
                 <input
                   type="text"
-                  placeholder="e.g. Emergency Fund, Gold"
+                  placeholder="e.g. Daily Expenses, Fuel"
                   value={newBankTag}
                   onChange={(e) => setNewBankTag(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1139,12 +1170,12 @@ export default function App() {
                   onChange={(e) => setNewBankCategory(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="Wallet">Wallet</option>
-                  <option value="Savings">Savings</option>
-                  <option value="MP2 Savings">MP2 Savings</option>
-                  <option value="Credit">Credit</option>
+                  <option value="Wallet">Wallet (Spendable)</option>
+                  <option value="Credit">Credit (Spendable)</option>
+                  <option value="Savings">Savings (Protected)</option>
+                  <option value="MP2 Savings">MP2 Savings (Protected)</option>
+                  <option value="Asset">Asset (Protected)</option>
                   <option value="Loans">Loans</option>
-                  <option value="Asset">Asset</option>
                 </select>
               </div>
 
