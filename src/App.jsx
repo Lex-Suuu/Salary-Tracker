@@ -51,13 +51,13 @@ const FILTER_TABS = ['All', 'Wallet', 'Savings', 'MP2 Savings', 'Credit', 'Loans
 
 const DEFAULT_ACCOUNTS = [
   { id: 'acc_gotyme', name: 'Emergency Fund', bankName: 'GO', balance: 0, category: 'Wallet', iconColor: 'bg-emerald-500 text-white', isClosed: false },
-  { id: 'acc_bdo', name: 'Emergency Fund', bankName: 'BDO', balance: 0, category: 'Savings', iconColor: 'bg-blue-900 text-amber-400', isClosed: false },
-  { id: 'acc_bpi', name: 'Savings', bankName: 'BPI', balance: 0, category: 'Savings', iconColor: 'bg-red-700 text-white', isClosed: false },
-  { id: 'acc_mp2', name: 'Retirement Fund', bankName: 'MP2', balance: 0, category: 'MP2 Savings', iconColor: 'bg-indigo-900 text-white', isClosed: false },
-  { id: 'acc_maya_sa', name: 'SA/TD/Personal Goal', bankName: 'maya', balance: 0, category: 'Savings', iconColor: 'bg-black text-emerald-400', isClosed: false },
+  { id: 'acc_bdo', name: 'Emergency Fund', bankName: 'BDO', balance: 0, category: 'Savings', iconColor: 'bg-[#002f6c] text-[#f2a900]', isClosed: false },
+  { id: 'acc_bpi', name: 'Savings', bankName: 'BPI', balance: 0, category: 'Savings', iconColor: 'bg-[#b11116] text-white', isClosed: false },
+  { id: 'acc_mp2', name: 'Retirement Fund', bankName: 'MP2', balance: 0, category: 'MP2 Savings', iconColor: 'bg-indigo-950 text-white', isClosed: false },
+  { id: 'acc_maya_sa', name: 'SA/TD/Goal', bankName: 'maya', balance: 0, category: 'Savings', iconColor: 'bg-zinc-900 text-emerald-400', isClosed: false },
   { id: 'acc_gcash', name: 'Gfund/Invest', bankName: 'G)', balance: 0, category: 'Wallet', iconColor: 'bg-blue-600 text-white', isClosed: false },
-  { id: 'acc_crypto', name: 'Fund/Stocks/Crypto', bankName: 'maya', balance: 0, category: 'Wallet', iconColor: 'bg-black text-emerald-400', isClosed: false },
-  { id: 'acc_gold', name: 'Gold', bankName: '💍', balance: 0, category: 'Asset', iconColor: 'bg-emerald-100 text-emerald-700', isClosed: false }
+  { id: 'acc_crypto', name: 'Stocks/Crypto', bankName: 'maya', balance: 0, category: 'Wallet', iconColor: 'bg-zinc-900 text-emerald-400', isClosed: false },
+  { id: 'acc_gold', name: 'Gold', bankName: '💍', balance: 0, category: 'Asset', iconColor: 'bg-amber-100 text-amber-800', isClosed: false }
 ];
 
 export default function App() {
@@ -65,7 +65,6 @@ export default function App() {
   const [expenseSubView, setExpenseSubView] = useState('list');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('All');
 
-  // Calendar State
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => {
     const today = new Date();
@@ -92,12 +91,10 @@ export default function App() {
     }
   });
 
-  // Global Total Net Worth eye hide/show state
   const [hideNetWorth, setHideNetWorth] = useState(() => {
     return localStorage.getItem('salary_tracker_hide_total') === 'true';
   });
 
-  // Per-account eye hide/show dictionary state
   const [hiddenAccounts, setHiddenAccounts] = useState(() => {
     try {
       const saved = localStorage.getItem('salary_tracker_hidden_accounts_v2');
@@ -107,7 +104,6 @@ export default function App() {
     }
   });
 
-  // Account Card Action Modal (Deposit / Withdraw / Close)
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [transferAmount, setTransferAmount] = useState('');
   const [transferType, setTransferType] = useState('deposit');
@@ -115,7 +111,6 @@ export default function App() {
   const [closeAction, setCloseAction] = useState('transfer');
   const [transferTargetId, setTransferTargetId] = useState('');
 
-  // Settings & Reports State
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -123,14 +118,12 @@ export default function App() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  // Add Bank Modal State
   const [showAddBankModal, setShowAddBankModal] = useState(false);
   const [newBankName, setNewBankName] = useState('');
   const [newBankTag, setNewBankTag] = useState('');
   const [newBankCategory, setNewBankCategory] = useState('Savings');
   const [newBankInitialBalance, setNewBankInitialBalance] = useState('');
 
-  // Protect savings / emergency funds from direct expense payments
   const isSpendingAccount = (acc) => {
     if (acc.isClosed) return false;
     const cat = (acc.category || '').toLowerCase();
@@ -151,7 +144,6 @@ export default function App() {
 
   const payableAccounts = accounts.filter(isSpendingAccount);
 
-  // Expense form state
   const [desc, setDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [category, setCategory] = useState(INITIAL_EXPENSE_CATEGORIES[0]);
@@ -191,7 +183,7 @@ export default function App() {
   };
 
   const toggleAccountVisibility = (e, accId) => {
-    e.stopPropagation(); // Prevents triggering card details modal
+    e.stopPropagation();
     setHiddenAccounts((prev) => ({
       ...prev,
       [accId]: !prev[accId]
@@ -237,16 +229,16 @@ export default function App() {
 
   const getCategoryIcon = (cat = '') => {
     const name = cat.toLowerCase();
-    if (name.includes('grocery') || name.includes('essential')) return <ShoppingCart size={17} className="text-slate-600" />;
-    if (name.includes('fuel') || name.includes('gas')) return <Fuel size={17} className="text-slate-600" />;
-    if (name.includes('food') || name.includes('dining')) return <Utensils size={17} className="text-slate-600" />;
-    if (name.includes('housing') || name.includes('rent')) return <Home size={17} className="text-slate-600" />;
-    if (name.includes('utilit')) return <Zap size={17} className="text-slate-600" />;
-    if (name.includes('entertain')) return <Film size={17} className="text-slate-600" />;
-    if (name.includes('health')) return <HeartPulse size={17} className="text-slate-600" />;
-    if (name.includes('personal')) return <Sparkles size={17} className="text-slate-600" />;
-    if (name.includes('debt') || name.includes('loan')) return <CreditCard size={17} className="text-slate-600" />;
-    return <Layers size={17} className="text-slate-600" />;
+    if (name.includes('grocery') || name.includes('essential')) return <ShoppingCart size={16} className="text-slate-600" />;
+    if (name.includes('fuel') || name.includes('gas')) return <Fuel size={16} className="text-slate-600" />;
+    if (name.includes('food') || name.includes('dining')) return <Utensils size={16} className="text-slate-600" />;
+    if (name.includes('housing') || name.includes('rent')) return <Home size={16} className="text-slate-600" />;
+    if (name.includes('utilit')) return <Zap size={16} className="text-slate-600" />;
+    if (name.includes('entertain')) return <Film size={16} className="text-slate-600" />;
+    if (name.includes('health')) return <HeartPulse size={16} className="text-slate-600" />;
+    if (name.includes('personal')) return <Sparkles size={16} className="text-slate-600" />;
+    if (name.includes('debt') || name.includes('loan')) return <CreditCard size={16} className="text-slate-600" />;
+    return <Layers size={16} className="text-slate-600" />;
   };
 
   const handleAddExpense = (e) => {
@@ -298,7 +290,7 @@ export default function App() {
     setShowExpenseModal(false);
 
     if (nextTodayExpenses >= 1000 && todayExpenses < 1000) {
-      showToast(`Daily Warning: Today's expenses reached ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} (₱1,000+ limit crossed)!`, 'warning');
+      showToast(`Daily Limit: You spent ₱${nextTodayExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })} today (₱1,000 threshold crossed)`, 'warning');
     } else {
       showToast(`Logged: ₱${amt.toLocaleString()} (${finalCategory})`);
     }
@@ -306,7 +298,7 @@ export default function App() {
 
   const handleFullResetData = () => {
     setShowSettingsMenu(false);
-    if (window.confirm('Are you sure you want to completely RESET ALL DATA? All account balances, transactions, and net worth will be set to ₱0.00.')) {
+    if (window.confirm('Reset all data? All account balances, transactions, and net worth will be set to ₱0.00.')) {
       const resetAccounts = DEFAULT_ACCOUNTS.map(a => ({ ...a, balance: 0, isClosed: false }));
       setAccounts(resetAccounts);
       setTransactions([]);
@@ -367,7 +359,7 @@ export default function App() {
       if (closeAction === 'transfer') {
         const targetAcc = accounts.find((a) => a.id === transferTargetId && !a.isClosed && a.id !== selectedAccount.id);
         if (!targetAcc) {
-          showToast('Please select an active destination account to transfer funds', 'error');
+          showToast('Please select a destination account to transfer funds', 'error');
           return;
         }
 
@@ -449,7 +441,7 @@ export default function App() {
       bankName: newBankName.trim(),
       balance: initialAmt,
       category: newBankCategory,
-      iconColor: 'bg-blue-600 text-white',
+      iconColor: 'bg-indigo-600 text-white',
       isClosed: false
     };
 
@@ -461,7 +453,6 @@ export default function App() {
     showToast(`Added ${newAcc.bankName} to ${newAcc.category}`);
   };
 
-  // Calendar Helpers
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -496,62 +487,62 @@ export default function App() {
   const transferTargets = accounts.filter((a) => !a.isClosed && a.id !== selectedAccount?.id);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex justify-center text-slate-800 font-sans selection:bg-indigo-500 selection:text-white relative">
+    <div className="min-h-screen bg-slate-950 flex justify-center text-slate-800 font-sans selection:bg-indigo-500 selection:text-white relative">
       {/* Toast Alert */}
       {notification.show && (
         <div
-          className={`fixed top-4 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-xl text-white text-xs font-semibold animate-in fade-in duration-200 ${
+          className={`fixed top-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl shadow-xl text-white text-xs font-semibold backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200 ${
             notification.type === 'error'
-              ? 'bg-red-600'
+              ? 'bg-rose-600/95'
               : notification.type === 'warning'
-              ? 'bg-amber-600'
-              : 'bg-emerald-600'
+              ? 'bg-amber-600/95'
+              : 'bg-emerald-600/95'
           }`}
         >
-          {notification.type === 'error' ? <AlertCircle size={16} /> : notification.type === 'warning' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+          {notification.type === 'error' ? <AlertCircle size={15} /> : notification.type === 'warning' ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
           <span>{notification.message}</span>
         </div>
       )}
 
-      {/* Mobile App Container */}
-      <div className="w-full max-w-md min-h-screen bg-[#f1f3f6] shadow-2xl flex flex-col relative pb-24">
+      {/* Main Mobile App Frame */}
+      <div className="w-full max-w-md min-h-screen bg-[#f8fafc] shadow-2xl flex flex-col relative pb-28 border-x border-slate-800/40">
         
-        {/* Top Sticky Header */}
-        <header className="sticky top-0 z-30 bg-[#f1f3f6]/95 backdrop-blur-md px-5 pt-4 pb-3 border-b border-slate-200/60">
+        {/* Top Header */}
+        <header className="sticky top-0 z-30 bg-[#f8fafc]/90 backdrop-blur-md px-5 pt-3.5 pb-2.5 border-b border-slate-200/60">
           <div className="flex items-center justify-between gap-2">
             
             {/* View Switcher: Expenses vs Net Worth */}
-            <div className="flex bg-slate-200/90 p-1 rounded-2xl border border-slate-300/70 shadow-inner">
+            <div className="flex bg-slate-200/70 p-1 rounded-2xl border border-slate-300/60 shadow-xs">
               <button
                 onClick={() => setMainTab('expenses')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                   mainTab === 'expenses'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Receipt size={14} className={mainTab === 'expenses' ? 'text-indigo-600' : ''} />
+                <Receipt size={14} className={mainTab === 'expenses' ? 'text-indigo-600' : 'opacity-70'} />
                 Expenses
               </button>
               <button
                 onClick={() => setMainTab('networth')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                   mainTab === 'networth'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Wallet size={14} className={mainTab === 'networth' ? 'text-indigo-600' : ''} />
+                <Wallet size={14} className={mainTab === 'networth' ? 'text-indigo-600' : 'opacity-70'} />
                 Net Worth
               </button>
             </div>
 
-            {/* Settings Dropdown Toggle */}
+            {/* Settings Dropdown Button */}
             <div className="relative" ref={settingsMenuRef}>
               <button
                 onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                className="p-2 bg-white text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-95 transition-all shadow-xs"
-                title="Settings"
+                className="p-2 bg-white text-slate-600 border border-slate-200/90 rounded-2xl hover:bg-slate-50 active:scale-95 transition-all shadow-xs"
+                title="Settings & Tools"
               >
                 <SlidersHorizontal size={14} />
               </button>
@@ -563,9 +554,9 @@ export default function App() {
                       setShowSettingsMenu(false);
                       setShowAddBankModal(true);
                     }}
-                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors"
                   >
-                    <Building2 size={14} className="text-blue-600" /> + Add Bank / Wallet
+                    <Building2 size={14} className="text-indigo-600" /> + Add Bank / Wallet
                   </button>
 
                   <button
@@ -573,7 +564,7 @@ export default function App() {
                       setShowSettingsMenu(false);
                       setShowReportModal(true);
                     }}
-                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors"
                   >
                     <FileText size={14} className="text-emerald-600" /> View Reports & Export
                   </button>
@@ -582,9 +573,9 @@ export default function App() {
 
                   <button
                     onClick={handleFullResetData}
-                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition-colors"
                   >
-                    <Trash2 size={13} className="text-red-500" /> Reset All Data
+                    <Trash2 size={13} className="text-rose-500" /> Reset All Data
                   </button>
                 </div>
               )}
@@ -592,75 +583,78 @@ export default function App() {
           </div>
         </header>
 
-        {/* Content Body */}
-        <main className="flex-1 px-4 pt-3 space-y-4">
+        {/* Main Content Area */}
+        <main className="flex-1 px-4 pt-3.5 space-y-3.5">
 
           {/* ===================== EXPENSES VIEW ===================== */}
           {mainTab === 'expenses' && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               
-              {/* Total Spent This Month Card with List / Calendar Toggle */}
-              <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex items-center justify-between">
+              {/* Total Spent Card with Segmented Toggle */}
+              <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-sm flex items-center justify-between">
                 <div>
-                  <span className="text-xs text-slate-500 font-medium block mb-0.5">Total Spent This Month</span>
-                  <div className="text-2xl font-black text-slate-900 tracking-tight">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold block mb-1">
+                    Spent This Month
+                  </span>
+                  <div className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
                     {formatCurrency(totalMonthlyExpenses)}
                   </div>
                 </div>
 
+                {/* List / Calendar Switcher */}
                 <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
                   <button
                     onClick={() => setExpenseSubView('list')}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       expenseSubView === 'list'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-400 hover:text-slate-700'
                     }`}
                   >
-                    <span>☰</span> List
+                    <span className="text-xs">☰</span> List
                   </button>
                   <button
                     onClick={() => setExpenseSubView('calendar')}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       expenseSubView === 'calendar'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-400 hover:text-slate-700'
                     }`}
                   >
-                    <CalendarIcon size={12} /> Calendar
+                    <CalendarIcon size={13} /> Calendar
                   </button>
                 </div>
               </div>
 
-              {/* LIST VIEW */}
+              {/* LIST SUBVIEW */}
               {expenseSubView === 'list' && (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {currentMonthExpensesList.length === 0 ? (
-                    <div className="p-8 text-center bg-white rounded-3xl border border-slate-100 text-slate-400 text-xs italic">
-                      No expenses logged for this month yet. Tap the purple receipt button below to add one.
+                    <div className="p-10 text-center bg-white rounded-3xl border border-slate-200/70 text-slate-400 text-xs italic">
+                      No expenses logged for this month yet. Tap the button below to add one.
                     </div>
                   ) : (
                     currentMonthExpensesList.map((tx) => (
                       <div
                         key={tx.id}
-                        className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs flex items-center justify-between transition-all hover:shadow-sm"
+                        className="bg-white rounded-2xl px-4 py-3 border border-slate-200/70 shadow-xs flex items-center justify-between transition-all hover:border-slate-300"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center shrink-0">
                             {getCategoryIcon(tx.category || tx.description)}
                           </div>
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-800 leading-snug">
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-slate-800 truncate leading-snug">
                               {tx.description || tx.category || 'Expense'}
                             </h4>
                             <span className="text-[10px] text-slate-400 font-medium">
                               {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} •{' '}
-                              <span className="text-blue-600 font-semibold">{tx.fromName || 'Wallet'}</span>
+                              <span className="text-indigo-600 font-semibold">{tx.fromName || 'Wallet'}</span>
                             </span>
                           </div>
                         </div>
 
-                        <div className="text-xs font-black text-red-500 tracking-tight">
+                        <div className="text-xs font-black text-rose-600 tracking-tight tabular-nums pl-2 shrink-0">
                           -{formatCurrency(tx.amount)}
                         </div>
                       </div>
@@ -669,10 +663,12 @@ export default function App() {
                 </div>
               )}
 
-              {/* CALENDAR VIEW */}
+              {/* CALENDAR SUBVIEW */}
               {expenseSubView === 'calendar' && (
                 <div className="space-y-3">
-                  <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                  {/* Calendar Widget */}
+                  <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-sm">
+                    {/* Header Month / Navigation */}
                     <div className="flex items-center justify-between mb-4">
                       <button
                         onClick={prevMonth}
@@ -689,6 +685,7 @@ export default function App() {
                       </button>
                     </div>
 
+                    {/* Day Headers */}
                     <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
                       <span>S</span>
                       <span>M</span>
@@ -699,6 +696,7 @@ export default function App() {
                       <span>S</span>
                     </div>
 
+                    {/* Day Cells */}
                     <div className="grid grid-cols-7 gap-1 text-center text-xs">
                       {Array.from({ length: firstDayIndex }).map((_, i) => (
                         <div key={`empty-${i}`} className="h-8" />
@@ -725,13 +723,13 @@ export default function App() {
                             onClick={() => setSelectedCalendarDate(dateString)}
                             className={`h-8 rounded-full flex flex-col items-center justify-center font-bold text-xs relative transition-all ${
                               isSelected
-                                ? 'bg-red-500 text-white shadow-xs'
+                                ? 'bg-rose-500 text-white shadow-xs'
                                 : 'text-slate-700 hover:bg-slate-100'
                             }`}
                           >
                             <span>{dayNum}</span>
                             {!isSelected && hasExpense && (
-                              <span className="w-1 h-1 rounded-full bg-red-500 absolute bottom-1" />
+                              <span className="w-1 h-1 rounded-full bg-rose-500 absolute bottom-1" />
                             )}
                           </button>
                         );
@@ -739,10 +737,11 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
+                  {/* Day Expense Summary Breakdown */}
+                  <div className="bg-white rounded-3xl p-4 border border-slate-200/70 shadow-sm space-y-2">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <span className="text-xs font-bold text-slate-700">Date: {selectedCalendarDate}</span>
-                      <span className="text-xs font-black text-red-500">{formatCurrency(selectedDateTotal)}</span>
+                      <span className="text-xs font-black text-rose-600 tabular-nums">{formatCurrency(selectedDateTotal)}</span>
                     </div>
 
                     {selectedDateExpenses.length === 0 ? (
@@ -750,10 +749,10 @@ export default function App() {
                     ) : (
                       selectedDateExpenses.map((tx) => (
                         <div key={tx.id} className="flex items-center justify-between text-xs py-1">
-                          <span className="font-semibold text-slate-800 truncate max-w-[200px]">
+                          <span className="font-medium text-slate-700 truncate max-w-[200px]">
                             {tx.description || tx.category}
                           </span>
-                          <span className="font-bold text-red-500">-{formatCurrency(tx.amount)}</span>
+                          <span className="font-bold text-rose-600 tabular-nums">-{formatCurrency(tx.amount)}</span>
                         </div>
                       ))
                     )}
@@ -767,19 +766,21 @@ export default function App() {
           {mainTab === 'networth' && (
             <>
               {/* Total Net Worth Card */}
-              <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm relative overflow-hidden">
+              <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-sm relative overflow-hidden">
                 <div className="flex items-center justify-between text-slate-400 mb-1">
-                  <span className="text-xs font-medium">Total Net Worth</span>
+                  <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                    Total Net Worth
+                  </span>
                   <button
                     onClick={() => setHideNetWorth(!hideNetWorth)}
-                    className="p-1 hover:text-slate-600 transition-colors"
+                    className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
                     title={hideNetWorth ? 'Show Net Worth' : 'Hide Net Worth'}
                   >
-                    {hideNetWorth ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {hideNetWorth ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
 
-                <div className={`text-3xl font-extrabold text-slate-900 tracking-tight transition-all duration-200 ${hideNetWorth ? 'blur-md select-none' : ''}`}>
+                <div className={`text-2xl font-black text-slate-900 tracking-tight tabular-nums transition-all duration-200 ${hideNetWorth ? 'blur-md select-none' : ''}`}>
                   {formatCurrency(totalNetWorth)}
                 </div>
               </div>
@@ -790,7 +791,7 @@ export default function App() {
                   <button
                     key={tab}
                     onClick={() => setActiveCategoryFilter(tab)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                       activeCategoryFilter === tab
                         ? 'bg-slate-900 text-white shadow-xs'
                         : 'bg-white text-slate-500 hover:text-slate-800 border border-slate-200/80'
@@ -801,13 +802,13 @@ export default function App() {
                 ))}
               </div>
 
-              {/* 2-Column Accounts Grid with Individual Eye Toggles */}
+              {/* 2-Column Accounts Grid */}
               {filteredAccounts.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs italic bg-white rounded-3xl border border-slate-100">
+                <div className="p-10 text-center text-slate-400 text-xs italic bg-white rounded-3xl border border-slate-200/70">
                   {activeCategoryFilter === 'Closed' ? 'No closed accounts.' : 'No accounts in this category.'}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-2 gap-2.5 pt-0.5">
                   {filteredAccounts.map((acc) => {
                     const isMasked = !!hiddenAccounts[acc.id] || hideNetWorth;
 
@@ -819,15 +820,15 @@ export default function App() {
                           setIsClosingFlow(false);
                           setTransferTargetId(transferTargets[0]?.id || '');
                         }}
-                        className={`bg-white rounded-2xl p-4 border shadow-xs flex flex-col justify-between hover:border-slate-300 hover:shadow-md cursor-pointer transition-all active:scale-[0.98] ${
-                          acc.isClosed ? 'border-dashed border-slate-300 opacity-60' : 'border-slate-100'
+                        className={`bg-white rounded-2xl p-3.5 border shadow-xs flex flex-col justify-between hover:border-slate-300 hover:shadow-sm cursor-pointer transition-all active:scale-[0.98] ${
+                          acc.isClosed ? 'border-dashed border-slate-300 opacity-60' : 'border-slate-200/70'
                         }`}
                       >
                         <div>
-                          {/* Header row with bank badge, title, and individual eye toggle */}
-                          <div className="flex items-center justify-between mb-3 gap-1">
+                          {/* Top Row: Icon Badge, Name, and Individual Eye Toggle */}
+                          <div className="flex items-center justify-between mb-2.5 gap-1">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold shadow-xs shrink-0 ${acc.iconColor || 'bg-slate-900 text-white'}`}>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shadow-xs shrink-0 ${acc.iconColor || 'bg-slate-900 text-white'}`}>
                                 {acc.bankName}
                               </div>
                               <span className="text-xs font-bold text-slate-800 truncate leading-snug">
@@ -835,7 +836,6 @@ export default function App() {
                               </span>
                             </div>
 
-                            {/* Individual Eye Toggle Button */}
                             <button
                               type="button"
                               onClick={(e) => toggleAccountVisibility(e, acc.id)}
@@ -844,21 +844,21 @@ export default function App() {
                                   ? 'bg-slate-200 text-slate-800'
                                   : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
                               }`}
-                              title={hiddenAccounts[acc.id] ? `Show ${acc.name} balance` : `Hide ${acc.name} balance`}
+                              title={hiddenAccounts[acc.id] ? `Show balance` : `Hide balance`}
                             >
                               {hiddenAccounts[acc.id] ? <EyeOff size={13} /> : <Eye size={13} />}
                             </button>
                           </div>
 
                           {/* Account Balance */}
-                          <div className="text-base font-extrabold text-slate-900 tracking-tight">
+                          <div className="text-sm font-black text-slate-900 tracking-tight tabular-nums">
                             {formatCurrency(acc.balance, isMasked)}
                           </div>
                         </div>
 
                         {/* Bottom Tag */}
-                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-medium">
-                          <span className={acc.isClosed ? 'text-red-500 font-bold' : ''}>
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                          <span className={acc.isClosed ? 'text-rose-600 font-bold' : ''}>
                             {acc.isClosed ? 'Closed' : acc.category}
                           </span>
                           <ChevronRight size={12} className="text-slate-300" />
@@ -875,21 +875,21 @@ export default function App() {
         {/* Floating Action Button (FAB) to Log Expense */}
         <button
           onClick={() => setShowExpenseModal(true)}
-          className="fixed bottom-6 right-6 md:right-[calc(50%-180px)] z-40 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white flex items-center justify-center shadow-lg transition-all"
+          className="fixed bottom-6 right-6 md:right-[calc(50%-180px)] z-40 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 transition-all"
           title="Log Expense"
         >
-          <Receipt size={22} />
+          <Receipt size={20} />
         </button>
       </div>
 
       {/* Log Expense Modal */}
       {showExpenseModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-red-100 text-red-600 rounded-xl">
-                  <TrendingDown size={18} />
+                <div className="p-1.5 bg-rose-50 text-rose-600 rounded-xl">
+                  <TrendingDown size={16} />
                 </div>
                 <h4 className="text-sm font-bold text-slate-800 leading-tight">Log Expense</h4>
               </div>
@@ -900,36 +900,36 @@ export default function App() {
 
             <form onSubmit={handleAddExpense} className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Description</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Description</label>
                 <input
                   type="text"
                   placeholder="e.g. Grocery & Essentials"
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Amount (₱)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Amount (₱)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
                   value={expenseAmount}
                   onChange={(e) => setExpenseAmount(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-black tabular-nums"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Category</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Category</label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                 >
                   {INITIAL_EXPENSE_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>{cat}</option>
@@ -939,7 +939,7 @@ export default function App() {
 
               {category === 'Other' && (
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Custom Category Name</label>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Custom Category Name</label>
                   <input
                     type="text"
                     placeholder="e.g. Subscriptions"
@@ -951,16 +951,16 @@ export default function App() {
               )}
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Pay From</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Pay From</label>
                 {payableAccounts.length === 0 ? (
-                  <div className="p-2 bg-red-50 border border-red-200 rounded-xl text-[10px] text-red-700">
+                  <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-[10px] text-rose-700">
                     No active daily spending accounts found. Savings and retirement funds cannot be used.
                   </div>
                 ) : (
                   <select
                     value={expenseAccountId}
                     onChange={(e) => setExpenseAccountId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                   >
                     {payableAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>
@@ -970,14 +970,14 @@ export default function App() {
                   </select>
                 )}
                 <span className="text-[9px] text-slate-400 block mt-1">
-                  * Savings, MP2, Retirement & Emergency funds are protected and excluded from payments.
+                  * Savings, MP2, Retirement & Emergency funds are protected and excluded.
                 </span>
               </div>
 
               <button
                 type="submit"
                 disabled={payableAccounts.length === 0}
-                className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <Plus size={15} /> Add Expense
               </button>
@@ -988,7 +988,7 @@ export default function App() {
 
       {/* Account Balance Action Modal */}
       {selectedAccount && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
@@ -1013,9 +1013,9 @@ export default function App() {
 
             <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 text-center mb-3">
               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Current Balance</span>
-              <span className="text-lg font-extrabold text-slate-900">{formatCurrency(selectedAccount.balance)}</span>
+              <span className="text-lg font-black text-slate-900 tabular-nums">{formatCurrency(selectedAccount.balance)}</span>
               {selectedAccount.isClosed && (
-                <span className="inline-block px-2 py-0.5 mt-1 bg-red-100 text-red-700 text-[10px] font-bold rounded-full">
+                <span className="inline-block px-2 py-0.5 mt-1 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full">
                   Account is Closed
                 </span>
               )}
@@ -1048,7 +1048,7 @@ export default function App() {
                     type="button"
                     onClick={() => setTransferType('withdraw')}
                     className={`w-1/2 py-1 text-xs font-bold rounded-lg transition-all ${
-                      transferType === 'withdraw' ? 'bg-white text-red-700 shadow-xs' : 'text-slate-500'
+                      transferType === 'withdraw' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500'
                     }`}
                   >
                     - Withdraw
@@ -1062,13 +1062,13 @@ export default function App() {
                     placeholder="₱ Amount"
                     value={transferAmount}
                     onChange={(e) => setTransferAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-black tabular-nums"
                     required
                   />
                   <button
                     type="submit"
                     className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm active:scale-95 ${
-                      transferType === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+                      transferType === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
                     }`}
                   >
                     Confirm {transferType === 'deposit' ? 'Deposit' : 'Withdrawal'}
@@ -1079,7 +1079,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setIsClosingFlow(true)}
-                    className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline flex items-center justify-center gap-1 mx-auto"
+                    className="text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline flex items-center justify-center gap-1 mx-auto"
                   >
                     <Archive size={13} /> Close This Account
                   </button>
@@ -1087,9 +1087,9 @@ export default function App() {
               </div>
             ) : (
               <div className="space-y-3 animate-in fade-in duration-150">
-                <div className="p-2.5 bg-red-50 border border-red-100 rounded-2xl text-[11px] text-red-800">
+                <div className="p-2.5 bg-rose-50 border border-rose-100 rounded-2xl text-[11px] text-rose-800">
                   <span className="font-bold block mb-0.5 flex items-center gap-1">
-                    <AlertTriangle size={13} className="text-red-600 shrink-0" /> Close Account Confirmation
+                    <AlertTriangle size={13} className="text-rose-600 shrink-0" /> Close Account Confirmation
                   </span>
                   {selectedAccount.balance > 0 ? (
                     <span>This account has an active balance of <strong>{formatCurrency(selectedAccount.balance)}</strong>. Choose what to do with the funds:</span>
@@ -1155,7 +1155,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={handleCloseAccount}
-                    className="w-1/2 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-sm active:scale-95"
+                    className="w-1/2 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all shadow-sm active:scale-95"
                   >
                     Confirm Close
                   </button>
@@ -1168,7 +1168,7 @@ export default function App() {
 
       {/* Add New Bank / Wallet Modal */}
       {showAddBankModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200">
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-sm font-bold text-slate-800">Add Bank / Asset</h4>
@@ -1179,7 +1179,7 @@ export default function App() {
 
             <form onSubmit={handleAddAccountSubmit} className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Bank Tag (e.g. BDO, Maya, MP2)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Bank Tag (e.g. BDO, Maya, MP2)</label>
                 <input
                   type="text"
                   placeholder="e.g. GCash"
@@ -1191,7 +1191,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Account Purpose</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Account Purpose</label>
                 <input
                   type="text"
                   placeholder="e.g. Daily Expenses, Fuel"
@@ -1203,11 +1203,11 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Category Filter</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Category Filter</label>
                 <select
                   value={newBankCategory}
                   onChange={(e) => setNewBankCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                 >
                   <option value="Wallet">Wallet (Spendable)</option>
                   <option value="Credit">Credit (Spendable)</option>
@@ -1219,14 +1219,14 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Initial Balance (₱)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Initial Balance (₱)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
                   value={newBankInitialBalance}
                   onChange={(e) => setNewBankInitialBalance(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-black tabular-nums"
                 />
               </div>
 
@@ -1243,7 +1243,7 @@ export default function App() {
 
       {/* Financial Summary & Export Modal */}
       {showReportModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center pb-3 border-b border-slate-100">
@@ -1267,7 +1267,7 @@ export default function App() {
                   <button
                     key={item.value}
                     onClick={() => setReportRange(item.value)}
-                    className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border ${
+                    className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border transition-all ${
                       reportRange === item.value ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-500'
                     }`}
                   >
