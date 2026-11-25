@@ -30,7 +30,9 @@ import {
   Printer,
   Download,
   Eye,
-  EyeOff
+  EyeOff,
+  ArrowRightLeft,
+  Upload
 } from 'lucide-react';
 
 const INITIAL_EXPENSE_CATEGORIES = [
@@ -49,16 +51,154 @@ const INITIAL_EXPENSE_CATEGORIES = [
 
 const FILTER_TABS = ['All', 'Wallet', 'Savings', 'MP2 Savings', 'Credit', 'Loans', 'Closed'];
 
-const DEFAULT_ACCOUNTS = [
-  { id: 'acc_gotyme', name: 'Emergency Fund', bankName: 'GO', balance: 0, category: 'Wallet', iconColor: 'bg-emerald-500 text-white', isClosed: false },
-  { id: 'acc_bdo', name: 'Emergency Fund', bankName: 'BDO', balance: 0, category: 'Savings', iconColor: 'bg-[#002f6c] text-[#f2a900]', isClosed: false },
-  { id: 'acc_bpi', name: 'Savings', bankName: 'BPI', balance: 0, category: 'Savings', iconColor: 'bg-[#b11116] text-white', isClosed: false },
-  { id: 'acc_mp2', name: 'Retirement Fund', bankName: 'MP2', balance: 0, category: 'MP2 Savings', iconColor: 'bg-indigo-950 text-white', isClosed: false },
-  { id: 'acc_maya_sa', name: 'SA/TD/Goal', bankName: 'maya', balance: 0, category: 'Savings', iconColor: 'bg-zinc-900 text-emerald-400', isClosed: false },
-  { id: 'acc_gcash', name: 'Gfund/Invest', bankName: 'G)', balance: 0, category: 'Wallet', iconColor: 'bg-blue-600 text-white', isClosed: false },
-  { id: 'acc_crypto', name: 'Stocks/Crypto', bankName: 'maya', balance: 0, category: 'Wallet', iconColor: 'bg-zinc-900 text-emerald-400', isClosed: false },
-  { id: 'acc_gold', name: 'Gold', bankName: '💍', balance: 0, category: 'Asset', iconColor: 'bg-amber-100 text-amber-800', isClosed: false }
+// Built-in Bank Brand Presets for the "Add Bank" Modal & Cards
+const BANK_PRESETS = [
+  { id: 'gotyme', label: 'GoTyme', tag: 'GO', bg: 'bg-[#1ce8f4] text-[#1e2530]' },
+  { id: 'bdo', label: 'BDO', tag: 'BDO', bg: 'bg-[#002f6c] text-[#f2a900]' },
+  { id: 'bpi', label: 'BPI', tag: 'BPI', bg: 'bg-[#b11116] text-white' },
+  { id: 'maya', label: 'Maya', tag: 'maya', bg: 'bg-zinc-900 text-emerald-400' },
+  { id: 'gcash', label: 'GCash', tag: 'G)', bg: 'bg-[#007dfe] text-white' },
+  { id: 'rcbc', label: 'RCBC', tag: 'RCBC', bg: 'bg-[#0055a5] text-white' },
+  { id: 'ub', label: 'UnionBank', tag: 'UB', bg: 'bg-[#ff6a00] text-white' },
+  { id: 'seabank', label: 'MariBank', tag: 'M', bg: 'bg-[#ee4d2d] text-white' },
+  { id: 'mp2', label: 'Pag-IBIG MP2', tag: 'MP2', bg: 'bg-indigo-950 text-amber-300' },
+  { id: 'gold', label: 'Gold / Asset', tag: '💍', bg: 'bg-amber-100 text-amber-800' }
 ];
+
+const DEFAULT_ACCOUNTS = [
+  { id: 'acc_gotyme', name: 'Emergency Fund', bankName: 'GO', brandId: 'gotyme', balance: 0, category: 'Wallet', iconColor: 'bg-[#1ce8f4] text-[#1e2530]', isClosed: false },
+  { id: 'acc_bdo', name: 'Emergency Fund', bankName: 'BDO', brandId: 'bdo', balance: 0, category: 'Savings', iconColor: 'bg-[#002f6c] text-[#f2a900]', isClosed: false },
+  { id: 'acc_bpi', name: 'Savings', bankName: 'BPI', brandId: 'bpi', balance: 0, category: 'Savings', iconColor: 'bg-[#b11116] text-white', isClosed: false },
+  { id: 'acc_mp2', name: 'Retirement Fund', bankName: 'MP2', brandId: 'mp2', balance: 0, category: 'MP2 Savings', iconColor: 'bg-indigo-950 text-amber-300', isClosed: false },
+  { id: 'acc_maya_sa', name: 'SA/TD/Goal', bankName: 'maya', brandId: 'maya', balance: 0, category: 'Savings', iconColor: 'bg-zinc-900 text-emerald-400', isClosed: false },
+  { id: 'acc_gcash', name: 'Gfund/Invest', bankName: 'G)', brandId: 'gcash', balance: 0, category: 'Wallet', iconColor: 'bg-[#007dfe] text-white', isClosed: false },
+  { id: 'acc_crypto', name: 'Stocks/Crypto', bankName: 'maya', brandId: 'maya', balance: 0, category: 'Wallet', iconColor: 'bg-zinc-900 text-emerald-400', isClosed: false },
+  { id: 'acc_gold', name: 'Gold', bankName: '💍', brandId: 'gold', balance: 0, category: 'Asset', iconColor: 'bg-amber-100 text-amber-800', isClosed: false }
+];
+
+// Renders authentic SVG bank logos or custom uploaded images
+function BankAvatar({ acc, size = 'md' }) {
+  const dims = size === 'lg' ? 'w-10 h-10 text-xs' : 'w-7 h-7 text-[10px]';
+
+  // Custom uploaded image / URL logo
+  if (acc?.logoUrl) {
+    return (
+      <img
+        src={acc.logoUrl}
+        alt={acc.bankName || acc.name}
+        className={`${dims} rounded-full object-cover shadow-xs shrink-0 border border-slate-200/80 bg-white`}
+      />
+    );
+  }
+
+  const key = (acc?.brandId || acc?.bankName || '').toLowerCase();
+
+  // GoTyme Bank Logo (Cyan background + Dark Slate "GO" with segmented burst O)
+  if (key.includes('gotyme') || key === 'go') {
+    return (
+      <div className={`${dims} rounded-full bg-[#1ce8f4] flex items-center justify-center shadow-xs shrink-0 overflow-hidden`}>
+        <svg viewBox="0 0 40 24" className="w-[82%] h-[82%]" fill="none">
+          <path
+            d="M14.5 9.2H10.8V11.6H13.4C13 13.5 11.5 14.7 9.5 14.7C7.1 14.7 5.3 12.9 5.3 10.4C5.3 7.9 7.1 6.1 9.5 6.1C11.1 6.1 12.4 6.8 13.1 7.9L15.3 6.5C14.1 4.7 12 3.6 9.5 3.6C5.6 3.6 2.6 6.5 2.6 10.4C2.6 14.3 5.6 17.2 9.5 17.2C13.4 17.2 16 14.5 16 10.6C16 10.1 15.9 9.6 15.8 9.2H14.5Z"
+            fill="#1e2530"
+          />
+          <path
+            d="M25.5 3.6C21.6 3.6 18.6 6.5 18.6 10.4C18.6 14.3 21.6 17.2 25.5 17.2C28.8 17.2 31.4 15.2 32.1 12.3L29.5 11.6C29 13.4 27.5 14.7 25.5 14.7C23.1 14.7 21.3 12.9 21.3 10.4C21.3 7.9 23.1 6.1 25.5 6.1V3.6Z"
+            fill="#1e2530"
+          />
+          <line x1="26.5" y1="3.8" x2="26.2" y2="6.2" stroke="#1e2530" strokeWidth="1.2" />
+          <line x1="28.6" y1="4.4" x2="27.6" y2="6.6" stroke="#1e2530" strokeWidth="1.2" />
+          <line x1="30.4" y1="5.7" x2="28.8" y2="7.5" stroke="#1e2530" strokeWidth="1.2" />
+          <line x1="31.7" y1="7.5" x2="29.6" y2="8.7" stroke="#1e2530" strokeWidth="1.2" />
+          <line x1="32.3" y1="9.6" x2="29.9" y2="10.0" stroke="#1e2530" strokeWidth="1.2" />
+        </svg>
+      </div>
+    );
+  }
+
+  // BDO Unibank Logo
+  if (key.includes('bdo')) {
+    return (
+      <div className={`${dims} rounded-full bg-[#002f6c] flex items-center justify-center shadow-xs shrink-0 font-black tracking-tighter text-[#f2a900]`}>
+        BDO
+      </div>
+    );
+  }
+
+  // BPI Logo
+  if (key.includes('bpi')) {
+    return (
+      <div className={`${dims} rounded-full bg-[#b11116] flex items-center justify-center shadow-xs shrink-0 font-extrabold tracking-tight text-white`}>
+        BPI
+      </div>
+    );
+  }
+
+  // Maya Logo
+  if (key.includes('maya')) {
+    return (
+      <div className={`${dims} rounded-full bg-zinc-900 flex items-center justify-center shadow-xs shrink-0 font-extrabold tracking-tight text-emerald-400`}>
+        maya
+      </div>
+    );
+  }
+
+  // GCash Logo
+  if (key.includes('gcash') || key === 'g)') {
+    return (
+      <div className={`${dims} rounded-full bg-[#007dfe] flex items-center justify-center shadow-xs shrink-0`}>
+        <svg viewBox="0 0 24 24" className="w-[68%] h-[68%]" fill="none">
+          <path d="M13 12H9.5V14.2H12.2C11.8 15.7 10.6 16.6 9 16.6C6.9 16.6 5.4 15.1 5.4 13C5.4 10.9 6.9 9.4 9 9.4C10.3 9.4 11.4 10 12 10.9L13.8 9.7C12.8 8.2 11.1 7.3 9 7.3C5.7 7.3 3.2 9.8 3.2 13C3.2 16.2 5.7 18.7 9 18.7C12.3 18.7 14.5 16.4 14.5 13.2C14.5 12.7 14.4 12.3 14.3 12H13Z" fill="white"/>
+          <path d="M16.2 9.5C17.3 10.5 17.9 11.9 17.9 13.4C17.9 14.9 17.3 16.3 16.2 17.3" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+          <path d="M18.3 7.5C19.9 9 20.8 11.1 20.8 13.4C20.8 15.7 19.9 17.8 18.3 19.3" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </div>
+    );
+  }
+
+  // Pag-IBIG MP2 Logo
+  if (key.includes('mp2') || key.includes('pag-ibig')) {
+    return (
+      <div className={`${dims} rounded-full bg-indigo-950 flex items-center justify-center shadow-xs shrink-0 font-extrabold text-amber-300`}>
+        MP2
+      </div>
+    );
+  }
+
+  // RCBC Logo
+  if (key.includes('rcbc')) {
+    return (
+      <div className={`${dims} rounded-full bg-[#0055a5] flex items-center justify-center shadow-xs shrink-0 font-extrabold text-white`}>
+        RCBC
+      </div>
+    );
+  }
+
+  // UnionBank Logo
+  if (key.includes('ub') || key.includes('union')) {
+    return (
+      <div className={`${dims} rounded-full bg-[#ff6a00] flex items-center justify-center shadow-xs shrink-0 font-extrabold text-white`}>
+        UB
+      </div>
+    );
+  }
+
+  // MariBank / SeaBank Logo
+  if (key.includes('mari') || key.includes('sea')) {
+    return (
+      <div className={`${dims} rounded-full bg-[#ee4d2d] flex items-center justify-center shadow-xs shrink-0 font-extrabold text-white`}>
+        M
+      </div>
+    );
+  }
+
+  // Fallback Badge
+  return (
+    <div className={`${dims} rounded-full flex items-center justify-center font-extrabold shadow-xs shrink-0 ${acc?.iconColor || 'bg-slate-900 text-white'}`}>
+      {(acc?.bankName || 'BK').slice(0, 4)}
+    </div>
+  );
+}
 
 export default function App() {
   const [mainTab, setMainTab] = useState('expenses');
@@ -91,12 +231,10 @@ export default function App() {
     }
   });
 
-  // Controls ONLY the Total Net Worth display
   const [hideNetWorth, setHideNetWorth] = useState(() => {
     return localStorage.getItem('salary_tracker_hide_total') === 'true';
   });
 
-  // Controls individual card eye states independently
   const [hiddenAccounts, setHiddenAccounts] = useState(() => {
     try {
       const saved = localStorage.getItem('salary_tracker_hidden_accounts_v2');
@@ -109,6 +247,8 @@ export default function App() {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [transferAmount, setTransferAmount] = useState('');
   const [transferType, setTransferType] = useState('deposit');
+  const [bankTransferTargetId, setBankTransferTargetId] = useState('');
+
   const [isClosingFlow, setIsClosingFlow] = useState(false);
   const [closeAction, setCloseAction] = useState('transfer');
   const [transferTargetId, setTransferTargetId] = useState('');
@@ -120,11 +260,14 @@ export default function App() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
+  // Add Bank Modal States
   const [showAddBankModal, setShowAddBankModal] = useState(false);
-  const [newBankName, setNewBankName] = useState('');
+  const [selectedBrandId, setSelectedBrandId] = useState('gotyme');
+  const [newBankName, setNewBankName] = useState('GO');
   const [newBankTag, setNewBankTag] = useState('');
   const [newBankCategory, setNewBankCategory] = useState('Savings');
   const [newBankInitialBalance, setNewBankInitialBalance] = useState('');
+  const [newBankLogoUrl, setNewBankLogoUrl] = useState('');
 
   const isSpendingAccount = (acc) => {
     if (acc.isClosed) return false;
@@ -322,8 +465,41 @@ export default function App() {
       return;
     }
 
-    if (transferType === 'withdraw' && amt > selectedAccount.balance) {
-      showToast('Insufficient funds in this account', 'error');
+    if ((transferType === 'withdraw' || transferType === 'transfer') && amt > selectedAccount.balance) {
+      showToast(`Insufficient funds in ${selectedAccount.name}`, 'error');
+      return;
+    }
+
+    if (transferType === 'transfer') {
+      const targetAcc = accounts.find((a) => a.id === bankTransferTargetId && !a.isClosed && a.id !== selectedAccount.id);
+      if (!targetAcc) {
+        showToast('Please select a destination account', 'error');
+        return;
+      }
+
+      setAccounts(
+        accounts.map((a) => {
+          if (a.id === selectedAccount.id) return { ...a, balance: a.balance - amt };
+          if (a.id === targetAcc.id) return { ...a, balance: a.balance + amt };
+          return a;
+        })
+      );
+
+      const newTx = {
+        id: Date.now().toString(),
+        date: new Date().toISOString(),
+        type: 'TRANSFER',
+        description: `Transfer: ${selectedAccount.name} (${selectedAccount.bankName}) → ${targetAcc.name} (${targetAcc.bankName})`,
+        amount: amt,
+        category: 'Bank Transfer',
+        fromName: `${selectedAccount.name} (${selectedAccount.bankName})`,
+        toName: `${targetAcc.name} (${targetAcc.bankName})`
+      };
+
+      setTransactions([newTx, ...transactions]);
+      setSelectedAccount(null);
+      setTransferAmount('');
+      showToast(`Transferred ${formatCurrency(amt)} to ${targetAcc.name} (${targetAcc.bankName})`);
       return;
     }
 
@@ -430,27 +606,54 @@ export default function App() {
     setSelectedAccount(null);
   };
 
+  // Upload local image file for custom bank logo
+  const handleLogoFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      showToast('Please select an image under 1MB', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewBankLogoUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSelectBankPreset = (preset) => {
+    setSelectedBrandId(preset.id);
+    setNewBankName(preset.tag);
+    setNewBankLogoUrl('');
+  };
+
   const handleAddAccountSubmit = (e) => {
     e.preventDefault();
-    if (!newBankName.trim()) {
-      showToast('Name is required', 'error');
+    if (!newBankName.trim() && !newBankLogoUrl) {
+      showToast('Bank name or logo is required', 'error');
       return;
     }
     const initialAmt = parseFloat(newBankInitialBalance) || 0;
+    const matchedPreset = BANK_PRESETS.find((p) => p.id === selectedBrandId);
+
     const newAcc = {
       id: 'acc_' + Date.now().toString(),
       name: newBankTag.trim() || 'Savings',
-      bankName: newBankName.trim(),
+      bankName: newBankName.trim() || matchedPreset?.tag || 'BANK',
+      brandId: selectedBrandId,
+      logoUrl: newBankLogoUrl || null,
       balance: initialAmt,
       category: newBankCategory,
-      iconColor: 'bg-indigo-600 text-white',
+      iconColor: matchedPreset?.bg || 'bg-indigo-600 text-white',
       isClosed: false
     };
 
     setAccounts([...accounts, newAcc]);
-    setNewBankName('');
+    setNewBankName('GO');
+    setSelectedBrandId('gotyme');
     setNewBankTag('');
     setNewBankInitialBalance('');
+    setNewBankLogoUrl('');
     setShowAddBankModal(false);
     showToast(`Added ${newAcc.bankName} to ${newAcc.category}`);
   };
@@ -762,7 +965,7 @@ export default function App() {
           {/* ===================== NET WORTH VIEW ===================== */}
           {mainTab === 'networth' && (
             <>
-              {/* Total Net Worth Card (Controlled independently by its own Eye toggle) */}
+              {/* Total Net Worth Card */}
               <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-sm relative overflow-hidden">
                 <div className="flex items-center justify-between text-slate-400 mb-1">
                   <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
@@ -782,8 +985,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Category Pill Switcher Row */}
-              <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
+              {/* Category Pill Switcher Row (With pt-5 spacing) */}
+              <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pt-5 pb-5">
                 {FILTER_TABS.map((tab) => (
                   <button
                     key={tab}
@@ -807,7 +1010,6 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-2 gap-2.5 pt-0.5">
                   {filteredAccounts.map((acc) => {
-                    // Decoupled: Card mask is strictly dependent on hiddenAccounts[acc.id]
                     const isMasked = !!hiddenAccounts[acc.id];
 
                     return (
@@ -816,19 +1018,20 @@ export default function App() {
                         onClick={() => {
                           setSelectedAccount(acc);
                           setIsClosingFlow(false);
-                          setTransferTargetId(transferTargets[0]?.id || '');
+                          setTransferType('deposit');
+                          const otherActive = accounts.filter((a) => !a.isClosed && a.id !== acc.id);
+                          setTransferTargetId(otherActive[0]?.id || '');
+                          setBankTransferTargetId(otherActive[0]?.id || '');
                         }}
                         className={`bg-white rounded-2xl p-3.5 border shadow-xs flex flex-col justify-between hover:border-slate-300 hover:shadow-sm cursor-pointer transition-all active:scale-[0.98] ${
                           acc.isClosed ? 'border-dashed border-slate-300 opacity-60' : 'border-slate-200/70'
                         }`}
                       >
                         <div>
-                          {/* Top Row: Icon Badge, Name, and Individual Eye Toggle */}
+                          {/* Top Row: Bank Logo Avatar, Name, and Individual Eye Toggle */}
                           <div className="flex items-center justify-between mb-2.5 gap-1">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shadow-xs shrink-0 ${acc.iconColor || 'bg-slate-900 text-white'}`}>
-                                {acc.bankName}
-                              </div>
+                              <BankAvatar acc={acc} size="sm" />
                               <span className="text-xs font-bold text-slate-800 truncate leading-snug">
                                 {acc.name}
                               </span>
@@ -984,15 +1187,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Account Balance Action Modal */}
+      {/* Account Balance Action Modal: Deposit, Withdraw, Bank-to-Bank Transfer, or Close */}
       {selectedAccount && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold ${selectedAccount.iconColor}`}>
-                  {selectedAccount.bankName}
-                </div>
+                <BankAvatar acc={selectedAccount} size="sm" />
                 <div>
                   <h4 className="text-sm font-bold text-slate-800 leading-tight">{selectedAccount.name}</h4>
                   <span className="text-[10px] text-slate-400">{selectedAccount.category}</span>
@@ -1032,12 +1233,12 @@ export default function App() {
               </div>
             ) : !isClosingFlow ? (
               <div>
-                <div className="flex bg-slate-100 p-1 rounded-xl mb-3">
+                <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-xl mb-3 gap-1">
                   <button
                     type="button"
                     onClick={() => setTransferType('deposit')}
-                    className={`w-1/2 py-1 text-xs font-bold rounded-lg transition-all ${
-                      transferType === 'deposit' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'
+                    className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                      transferType === 'deposit' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     + Deposit
@@ -1045,31 +1246,78 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setTransferType('withdraw')}
-                    className={`w-1/2 py-1 text-xs font-bold rounded-lg transition-all ${
-                      transferType === 'withdraw' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500'
+                    className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                      transferType === 'withdraw' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     - Withdraw
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransferType('transfer')}
+                    className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                      transferType === 'transfer' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    ⇄ Transfer
+                  </button>
                 </div>
 
                 <form onSubmit={handleAccountBalanceUpdate} className="space-y-3">
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="₱ Amount"
-                    value={transferAmount}
-                    onChange={(e) => setTransferAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-black tabular-nums"
-                    required
-                  />
+                  {transferType === 'transfer' && (
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Transfer To</label>
+                      {transferTargets.length === 0 ? (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-800">
+                          No other active accounts available to receive funds.
+                        </div>
+                      ) : (
+                        <select
+                          value={bankTransferTargetId}
+                          onChange={(e) => setBankTransferTargetId(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                        >
+                          {transferTargets.map((target) => (
+                            <option key={target.id} value={target.id}>
+                              {target.name} ({target.bankName}) - {formatCurrency(target.balance)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Amount (₱)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-black tabular-nums"
+                      required
+                    />
+                  </div>
+
                   <button
                     type="submit"
-                    className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm active:scale-95 ${
-                      transferType === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+                    disabled={transferType === 'transfer' && transferTargets.length === 0}
+                    className={`w-full py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                      transferType === 'deposit'
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : transferType === 'withdraw'
+                        ? 'bg-rose-600 hover:bg-rose-700'
+                        : 'bg-indigo-600 hover:bg-indigo-700'
                     }`}
                   >
-                    Confirm {transferType === 'deposit' ? 'Deposit' : 'Withdrawal'}
+                    {transferType === 'transfer' ? (
+                      <><ArrowRightLeft size={14} /> Confirm Transfer</>
+                    ) : transferType === 'deposit' ? (
+                      'Confirm Deposit'
+                    ) : (
+                      'Confirm Withdrawal'
+                    )}
                   </button>
                 </form>
 
@@ -1164,10 +1412,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Add New Bank / Wallet Modal */}
+      {/* Add New Bank / Wallet Modal with Bank Logo Selector & Custom Upload */}
       {showAddBankModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-3xl max-w-xs w-full p-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-sm font-bold text-slate-800">Add Bank / Asset</h4>
               <button onClick={() => setShowAddBankModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
@@ -1175,15 +1423,75 @@ export default function App() {
               </button>
             </div>
 
+            {/* Live Logo Preview Banner */}
+            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100 mb-3">
+              <BankAvatar
+                acc={{
+                  bankName: newBankName,
+                  brandId: selectedBrandId,
+                  logoUrl: newBankLogoUrl
+                }}
+                size="lg"
+              />
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Logo Preview</span>
+                <span className="text-xs font-bold text-slate-800 truncate block">
+                  {newBankTag.trim() || 'Account Name'} ({newBankName.trim() || 'Bank'})
+                </span>
+              </div>
+            </div>
+
+            {/* Bank Logo Preset Picker Grid */}
+            <div className="mb-3">
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Select Bank Logo</label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {BANK_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleSelectBankPreset(preset)}
+                    className={`p-1.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                      selectedBrandId === preset.id && !newBankLogoUrl
+                        ? 'border-indigo-600 bg-indigo-50/70 shadow-xs'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                    title={preset.label}
+                  >
+                    <BankAvatar acc={{ brandId: preset.id, bankName: preset.tag }} size="sm" />
+                    <span className="text-[8px] font-bold text-slate-600 truncate w-full text-center">
+                      {preset.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Logo Image Upload Option */}
+            <div className="mb-3">
+              <label className="flex items-center justify-center gap-1.5 w-full py-1.5 px-3 border border-dashed border-slate-300 rounded-xl text-[11px] font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
+                <Upload size={13} className="text-indigo-600" />
+                <span>{newBankLogoUrl ? 'Change Custom Logo Image' : 'Or Upload Custom Logo'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
             <form onSubmit={handleAddAccountSubmit} className="space-y-3">
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Bank Tag (e.g. BDO, Maya, MP2)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Bank Short Tag</label>
                 <input
                   type="text"
-                  placeholder="e.g. GCash"
+                  placeholder="e.g. GO, BDO, Maya"
                   value={newBankName}
-                  onChange={(e) => setNewBankName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  onChange={(e) => {
+                    setNewBankName(e.target.value);
+                    setSelectedBrandId(e.target.value.toLowerCase());
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
                   required
                 />
               </div>
@@ -1192,7 +1500,7 @@ export default function App() {
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Account Purpose</label>
                 <input
                   type="text"
-                  placeholder="e.g. Daily Expenses, Fuel"
+                  placeholder="e.g. Emergency Fund, Daily Wallet"
                   value={newBankTag}
                   onChange={(e) => setNewBankTag(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
