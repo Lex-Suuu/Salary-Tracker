@@ -1,20 +1,24 @@
 {
-  "short_name": "Tracker",
   "name": "Salary & Budget Tracker",
+  "short_name": "SalaryTracker",
+  "description": "Personal net worth, savings, and daily expense tracker.",
   "start_url": "/Salary-Tracker/",
+  "scope": "/Salary-Tracker/",
   "display": "standalone",
   "background_color": "#f8fafc",
-  "theme_color": "#2563eb",
+  "theme_color": "#4f46e5",
   "icons": [
     {
-      "src": "vite.svg",
+      "src": "/Salary-Tracker/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "vite.svg",
+      "src": "/Salary-Tracker/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
